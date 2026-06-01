@@ -1,0 +1,1 @@
+app.settings.saveSetting("NativeKit", "SmartDeleteSkipConfirm", "false");
