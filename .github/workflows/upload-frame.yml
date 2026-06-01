@@ -19,7 +19,7 @@ jobs:
           sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
       - name: Start server and print URL
         run: |
-          python Breakdowns/upload_frame_server.py &
+          python "Breakdowns/Upload Frame.py" &
           sleep 2
           cloudflared tunnel --url http://localhost:5000 --no-autoupdate 2>&1 | tee /tmp/cf.log &
           sleep 5
