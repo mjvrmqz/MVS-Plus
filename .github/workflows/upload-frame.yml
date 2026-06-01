@@ -11,26 +11,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install flask pillow requests pyngrok
-      - name: Start server and print URL
-        env:
-          NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
+      - run: pip install flask pillow requests
+      - name: Install cloudflared
         run: |
-          python - <<'EOF'
-          from pyngrok import ngrok, conf
-          import os, subprocess, time
-
-          conf.get_default().auth_token = os.environ["NGROK_TOKEN"]
-          ngrok.kill()
-          time.sleep(1)
-
-          proc = subprocess.Popen(["python", "Breakdowns/upload_frame_server.py"])
-          time.sleep(2)
-          tunnel = ngrok.connect(5000)
-          url = tunnel.public_url
-          print(f"\n{'='*60}")
-          print(f"  OPEN THIS IN CHROME:")
-          print(f"  {url}")
-          print(f"{'='*60}\n", flush=True)
-          proc.wait()
-          EOF
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared-linux-amd64
+          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+      - name: Start server and print URL
+        run: |
+          python Breakdowns/upload_frame_server.py &
+          sleep 2
+          cloudflared tunnel --url http://localhost:5000 --no-autoupdate 2>&1 | tee /tmp/cf.log &
+          sleep 5
+          grep -o 'https://[a-zA-Z0-9.-]*trycloudflare\.com' /tmp/cf.log | head -1 | xargs -I{} echo "OPEN THIS IN CHROME: {}"
+          wait
