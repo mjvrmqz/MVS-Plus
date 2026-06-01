@@ -3,16 +3,31 @@ name: Upload Frame
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   run:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Run script
-        run: python3 "Breakdowns/Upload Frame.py"
+      - run: pip install flask pillow requests pyngrok
+      - name: Start server and print URL
+        env:
+          NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
+        run: |
+          python - <<'EOF'
+          from pyngrok import ngrok, conf
+          import os, subprocess, time, sys
+
+          conf.get_default().auth_token = os.environ["NGROK_TOKEN"]
+          proc = subprocess.Popen(["python", "Breakdowns/upload_frame_server.py"])
+          time.sleep(2)
+          tunnel = ngrok.connect(5000)
+          url = tunnel.public_url
+          print(f"\n{'='*60}")
+          print(f"  OPEN THIS IN CHROME:")
+          print(f"  {url}")
+          print(f"{'='*60}\n", flush=True)
+          proc.wait()
+          EOF
