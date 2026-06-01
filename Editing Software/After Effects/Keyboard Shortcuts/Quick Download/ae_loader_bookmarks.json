@@ -1,0 +1,20 @@
+[
+  {
+    "query": "https://www.youtube.com/channel/UCWsDFcIhY2DBi3GB5uykGXA",
+    "name": "IShowSpeed",
+    "type": "channel",
+    "avatar": "https://yt3.googleusercontent.com/ieK0j0sDqI_AHDwYxZ2Wly07-R7PG4S3YMtxOWCEe1QH-I0FgimJ92tlydQa6M78YD0VaywCaw=s0"
+  },
+  {
+    "query": "https://www.youtube.com/channel/UCnmGIkw-KdI0W5siakKPKog",
+    "name": "Ryan Trahan",
+    "type": "channel",
+    "avatar": "https://yt3.googleusercontent.com/fiJrCXLTjjY531uelhbpUD21Cb0iMb6vF21M6-H7ZhjMZPe2cAkIeB9yWUHtENkFhq1F3oVbgg=s0"
+  },
+  {
+    "query": "https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA",
+    "name": "MrBeast",
+    "type": "channel",
+    "avatar": "https://yt3.googleusercontent.com/nxYrc_1_2f77DoBadyxMTmv7ZpRZapHR5jbuYe7PlPd5cIRJxtNNEYyOC0ZsxaDyJJzXrnJiuDE=s0"
+  }
+]
