@@ -18,9 +18,12 @@ jobs:
         run: |
           python - <<'EOF'
           from pyngrok import ngrok, conf
-          import os, subprocess, time, sys
+          import os, subprocess, time
 
           conf.get_default().auth_token = os.environ["NGROK_TOKEN"]
+          ngrok.kill()
+          time.sleep(1)
+
           proc = subprocess.Popen(["python", "Breakdowns/upload_frame_server.py"])
           time.sleep(2)
           tunnel = ngrok.connect(5000)
