@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MSV Studios · Clips Builder
+MSV Studios · Clips Builder  (Flask web version)
 Paste a YouTube link → pick type → define clips with timestamps & notes
 → pushes everything to Notion with full Breakdown sub-page.
 """
@@ -8,6 +8,7 @@ Paste a YouTube link → pick type → define clips with timestamps & notes
 import subprocess, sys, os, io, threading, requests, json, re
 import random, tempfile, base64, glob, time
 from pathlib import Path
+from flask import Flask, request, jsonify, Response
 
 # ── auto-install ───────────────────────────────────────────────────────────────
 def pip(*pkgs):
@@ -24,8 +25,6 @@ try:
 except ImportError:
     pip("yt-dlp"); import yt_dlp
 
-import tkinter as tk
-
 # ── constants ──────────────────────────────────────────────────────────────────
 NOTION_TOKEN = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
 DATABASE_ID  = "35c1691964b4800f9d73d71d01cb5e2f"
@@ -35,17 +34,6 @@ NOTION_HDR   = {
     "Notion-Version": "2022-06-28",
 }
 IMGUR_CLIENT = "546c25a59c58ad7"
-
-BG     = "#0e0e0e"
-BG2    = "#161616"
-BG3    = "#1c1c1c"
-BORD   = "#2c2c2c"
-FG     = "#e8e8e8"
-FG2    = "#999999"
-FG3    = "#555555"
-ACCENT = "#ff0033"
-GREEN  = "#37c337"
-FONT   = "Helvetica Neue"
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -72,7 +60,6 @@ def run_ff(args, timeout=300):
         raise RuntimeError("ffmpeg: " + r.stderr.decode()[-400:])
 
 def upload_imgur_bytes(data):
-    """Upload image/GIF bytes to imgur → URL."""
     b64 = base64.b64encode(data).decode()
     r = requests.post(
         "https://api.imgur.com/3/image",
@@ -86,7 +73,6 @@ def upload_imgur_bytes(data):
     raise RuntimeError(f"Imgur: {j.get('data',{}).get('error', j)}")
 
 def upload_imgur_video(filepath):
-    """Upload mp4 via multipart → URL."""
     with open(filepath, "rb") as f:
         r = requests.post(
             "https://api.imgur.com/3/upload",
@@ -99,40 +85,11 @@ def upload_imgur_video(filepath):
     if j.get("success"): return j["data"]["link"]
     raise RuntimeError(f"Imgur video: {j}")
 
-def upload_notion_file(filepath):
-    """Upload video file directly to Notion → file upload ID."""
-    name = Path(filepath).name
-    # Step 1: create upload
-    r = requests.post(
-        "https://api.notion.com/v1/file-uploads",
-        headers={**NOTION_HDR, "Content-Type": "application/json"},
-        json={"filename": name, "content_type": "video/mp4"},
-        timeout=30,
-    )
-    r.raise_for_status()
-    upload = r.json()
-    print("Notion file-upload response:", upload)
-    upload_id  = upload.get("id")
-    upload_url = upload.get("upload_url")
-    if not upload_id or not upload_url:
-        raise RuntimeError(f"Notion file-upload failed: {upload}")
-    # Step 2: send file bytes
-    with open(filepath, "rb") as f:
-        r2 = requests.put(
-            upload_url,
-            headers={"Authorization": f"Bearer {NOTION_TOKEN}"},
-            data=f,
-            timeout=300,
-        )
-        r2.raise_for_status()
-    return upload_id
-
 def get_video_info(url):
     with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
         return ydl.extract_info(url, download=False)
 
 def get_channel_avatar(channel_url):
-    """Scrape channel page for avatar URL."""
     try:
         hdrs = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
         r = requests.get(channel_url, headers=hdrs, timeout=15)
@@ -149,7 +106,6 @@ def get_channel_avatar(channel_url):
     return None
 
 def download_full_low(url, out_dir):
-    """Download full video at lowest quality. Returns file path."""
     tmpl = os.path.join(out_dir, "full.%(ext)s")
     subprocess.run(
         [sys.executable, "-m", "yt_dlp",
@@ -163,7 +119,6 @@ def download_full_low(url, out_dir):
     raise RuntimeError("Low-quality video download failed")
 
 def download_clip_file(url, start, end, out_dir, idx):
-    """Download time-ranged clip. Returns file path."""
     tmpl  = os.path.join(out_dir, f"clip{idx}.%(ext)s")
     s_hms = secs_to_hms(start)
     e_hms = secs_to_hms(end)
@@ -181,13 +136,7 @@ def download_clip_file(url, start, end, out_dir, idx):
     raise RuntimeError(f"Clip {idx} download failed")
 
 def make_gif(video_path, duration):
-    """
-    Create a 5-second GIF from 5 random 1-second segments.
-    Blurred + darkened. Returns bytes, guaranteed < 5 MB.
-    """
     max_t = max(float(duration) - 1.5, 0.5)
-
-    # Pick 5 non-overlapping start times (2 s spacing)
     segs = []
     for _ in range(500):
         t = round(random.uniform(0, max_t), 3)
@@ -218,7 +167,6 @@ def make_gif(video_path, duration):
         for scale, fps in [(540, 10), (360, 8)]:
             fc = build_fc(scale, fps)
             try:
-                # Two-pass palette GIF
                 run_ff(["-y", "-i", video_path,
                         "-filter_complex", fc + ";[out]palettegen=max_colors=128[pal]",
                         "-map", "[pal]", palette_path])
@@ -226,7 +174,6 @@ def make_gif(video_path, duration):
                         "-filter_complex", fc + ";[out][1:v]paletteuse=dither=bayer[final]",
                         "-map", "[final]", gif_path])
             except Exception:
-                # Single-pass fallback
                 try:
                     run_ff(["-y", "-i", video_path,
                             "-filter_complex", fc, "-map", "[out]", gif_path])
@@ -237,7 +184,6 @@ def make_gif(video_path, duration):
             if len(data) <= 5 * 1024 * 1024:
                 return data
 
-        # Last resort: whatever size we have
         return open(gif_path, "rb").read()
 
 # ── Notion API ─────────────────────────────────────────────────────────────────
@@ -277,7 +223,6 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
 
     prop = title_prop(DATABASE_ID)
 
-    # ── 1. Main database page ──────────────────────────────────────────────────
     status("Creating main page…", 0.10)
     main_body = {
         "parent": {"database_id": DATABASE_ID},
@@ -291,14 +236,12 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
     main    = n_post("/pages", main_body)
     main_id = main["id"]
 
-    # ── 2. Thumbnail on main page ──────────────────────────────────────────────
     status("Adding thumbnail…", 0.15)
     n_patch(f"/blocks/{main_id}/children", {"children": [
         {"object": "block", "type": "image",
          "image": {"type": "external", "external": {"url": thumb_url}}}
     ]})
 
-    # ── 3. Breakdown sub-page ──────────────────────────────────────────────────
     status("Creating Breakdown page…", 0.20)
     breakdown_body = {
         "parent":     {"page_id": main_id},
@@ -310,26 +253,22 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
     breakdown_id = breakdown["id"]
 
     with tempfile.TemporaryDirectory() as tmp:
-        # ── 4. Download full video (low quality) for GIF ───────────────────────
         status("Downloading video for GIF…", 0.25)
         video_path = download_full_low(url, tmp)
 
-        # ── 5. Generate GIF ────────────────────────────────────────────────────
         status("Generating GIF cover…", 0.35)
         gif_data = make_gif(video_path, duration)
 
         status("Uploading GIF…", 0.45)
         gif_url = upload_imgur_bytes(gif_data)
 
-        # ── 6. Set Breakdown page cover ────────────────────────────────────────
         status("Setting Breakdown cover…", 0.50)
         n_patch(f"/pages/{breakdown_id}", {
             "cover": {"type": "external", "external": {"url": gif_url}}
         })
 
-        # ── 7. Callout with embedded video ─────────────────────────────────────
         status("Building Breakdown content…", 0.55)
-        callout_resp = n_patch(f"/blocks/{breakdown_id}/children", {"children": [
+        n_patch(f"/blocks/{breakdown_id}/children", {"children": [
             {
                 "object": "block", "type": "callout",
                 "callout": {
@@ -344,7 +283,6 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
             }
         ]})
 
-        # ── 8. Inline "Clips" database ─────────────────────────────────────────
         status("Creating Clips database…", 0.60)
         clips_db    = n_post("/databases", {
             "parent":     {"page_id": breakdown_id},
@@ -358,9 +296,8 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
             "views": [{"type": "gallery", "name": "Gallery", "layout": "gallery"}],
         })
         clips_db_id = clips_db["id"]
-        time.sleep(0.6)  # let Notion register the new database
+        time.sleep(0.6)
 
-        # ── 9. One page per clip ───────────────────────────────────────────────
         for i, clip in enumerate(clips):
             n = i + 1
             status(f"Processing Clip {n} of {len(clips)}…",
@@ -369,14 +306,9 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
             start, end, notes = clip["start"], clip["end"], clip["notes"]
             clip_name = clip["name"] if clip["name"] else f"Clip {n}"
 
-            # Download clip segment
             clip_path = download_clip_file(url, start, end, tmp, n)
-
-            # Upload clip to imgur
-            clip_url = upload_imgur_video(clip_path)
-
-            # YouTube timestamp deep-link
-            yt_ts = f"https://www.youtube.com/watch?v={vid_id}&t={start}s"
+            clip_url  = upload_imgur_video(clip_path)
+            yt_ts     = f"https://www.youtube.com/watch?v={vid_id}&t={start}s"
 
             page_body = {
                 "parent": {"database_id": clips_db_id},
@@ -397,256 +329,387 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
 
     return vid_title
 
-# ── GUI ────────────────────────────────────────────────────────────────────────
+# ── Flask app ──────────────────────────────────────────────────────────────────
 
-class ClipRow:
-    def __init__(self, parent, idx, on_filled):
-        self.idx        = idx
-        self._triggered = False
+app = Flask(__name__)
 
-        self.frame = tk.Frame(parent, bg=BG3,
-                              highlightthickness=1, highlightbackground=BORD)
-        self.frame.pack(fill="x", pady=(0, 8))
+# SSE event queues keyed by job_id
+_jobs = {}
 
-        # label + name field
-        lbl_row = tk.Frame(self.frame, bg=BG3)
-        lbl_row.pack(fill="x", padx=12, pady=(10, 4))
-        tk.Label(lbl_row, text=f"Clip {idx}",
-                 font=(FONT, 11, "bold"), bg=BG3, fg=FG).pack(side="left")
-        tk.Label(lbl_row, text="Name", font=(FONT, 10),
-                 bg=BG3, fg=FG2).pack(side="left", padx=(16, 6))
-        self.name_var = tk.StringVar()
-        tk.Entry(lbl_row, textvariable=self.name_var, width=22,
-                 bg=BG2, fg=FG, insertbackground=FG,
-                 font=(FONT, 11), bd=0,
-                 highlightthickness=1, highlightbackground=BORD,
-                 relief="flat").pack(side="left", ipady=4)
+HTML = r"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSV Studios · Clips Builder</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:     #0e0e0e;
+    --bg2:    #161616;
+    --bg3:    #1c1c1c;
+    --bord:   #2c2c2c;
+    --fg:     #e8e8e8;
+    --fg2:    #999999;
+    --fg3:    #555555;
+    --accent: #ff0033;
+    --green:  #37c337;
+    --font:   'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); }
 
-        # timestamps row
-        ts = tk.Frame(self.frame, bg=BG3)
-        ts.pack(fill="x", padx=12)
+  /* header */
+  header {
+    background: #0a0a0a;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header .title { font-size: 13px; font-weight: 700; }
+  header .sub   { font-size: 10px; color: var(--fg3); }
 
-        self.start_var = tk.StringVar()
-        self.end_var   = tk.StringVar()
+  /* layout */
+  main { max-width: 580px; margin: 0 auto; padding: 22px 18px 40px; }
 
-        for label, var in [("Start", self.start_var), ("End", self.end_var)]:
-            tk.Label(ts, text=label, font=(FONT, 10), bg=BG3, fg=FG2,
-                     width=5, anchor="w").pack(side="left")
-            tk.Entry(ts, textvariable=var, width=10,
-                     bg=BG2, fg=FG, insertbackground=FG,
-                     font=(FONT, 11), bd=0,
-                     highlightthickness=1, highlightbackground=BORD,
-                     relief="flat").pack(side="left", padx=(0, 18), ipady=5)
-            var.trace_add("write", lambda *_, cb=on_filled: self._check(cb))
+  label { display: block; font-size: 11px; color: var(--fg2); margin-bottom: 5px; }
 
-        tk.Label(ts, text="ss  or  mm:ss", font=(FONT, 9),
-                 bg=BG3, fg=FG3).pack(side="left")
+  input[type=text], input[type=url], textarea {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--bord);
+    border-radius: 4px;
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 12px;
+    padding: 9px 10px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, textarea:focus { border-color: #444; }
+  textarea { resize: vertical; min-height: 64px; }
 
-        # notes
-        tk.Label(self.frame, text="Notes", font=(FONT, 10),
-                 bg=BG3, fg=FG2).pack(anchor="w", padx=12, pady=(8, 2))
-        self.notes = tk.Text(self.frame, height=3,
-                             bg=BG2, fg=FG, insertbackground=FG,
-                             font=(FONT, 11), bd=0, padx=8, pady=6,
-                             highlightthickness=1, highlightbackground=BORD,
-                             relief="flat")
-        self.notes.pack(fill="x", padx=12, pady=(0, 10))
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--fg);
+    margin: 20px 0 10px;
+  }
+  hr { border: none; border-top: 1px solid var(--bord); margin: 18px 0; }
 
-    def _check(self, callback):
-        if self._triggered: return
-        if self.start_var.get().strip() and self.end_var.get().strip():
-            self._triggered = True
-            callback()
+  /* category buttons */
+  .cat-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .cat-btn {
+    background: var(--bg3);
+    border: 1px solid var(--bord);
+    border-radius: 4px;
+    color: var(--fg2);
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 11px;
+    padding: 7px 14px;
+    transition: background .15s, color .15s;
+  }
+  .cat-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-    def data(self):
-        return {
-            "start": self.start_var.get().strip(),
-            "end":   self.end_var.get().strip(),
-            "notes": self.notes.get("1.0", "end-1c").strip(),
-            "name":  self.name_var.get().strip(),
-        }
+  /* clip card */
+  .clip-card {
+    background: var(--bg3);
+    border: 1px solid var(--bord);
+    border-radius: 6px;
+    padding: 14px 14px 10px;
+    margin-bottom: 10px;
+  }
+  .clip-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+  .clip-num { font-size: 11px; font-weight: 700; color: var(--fg); white-space: nowrap; }
+  .clip-name { flex: 1; }
+  .ts-row { display: flex; gap: 10px; margin-bottom: 8px; }
+  .ts-row .field { display: flex; flex-direction: column; flex: 1; }
+  .ts-hint { font-size: 9px; color: var(--fg3); margin-top: 3px; }
 
+  #add-clip {
+    background: var(--bg2);
+    border: 1px dashed var(--bord);
+    border-radius: 4px;
+    color: var(--fg3);
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 11px;
+    padding: 8px;
+    width: 100%;
+    text-align: center;
+    transition: border-color .15s, color .15s;
+  }
+  #add-clip:hover { border-color: #444; color: var(--fg2); }
 
-class App(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("MSV Studios · Clips")
-        self.configure(bg=BG)
-        self.geometry("580x720")
-        self.resizable(True, True)
-        self._cat       = tk.StringVar(value="")
-        self._clip_rows = []
-        self._busy      = False
-        self._build()
+  /* progress */
+  #status-msg { font-size: 11px; color: var(--fg2); min-height: 16px; margin-bottom: 6px; }
+  #progress-bar-wrap {
+    background: var(--bg3);
+    border-radius: 2px;
+    height: 3px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  #progress-bar {
+    height: 3px;
+    width: 0%;
+    background: var(--accent);
+    transition: width .3s;
+  }
 
-    def _build(self):
-        # ── header ────────────────────────────────────────────────────────────
-        hdr = tk.Frame(self, bg="#0a0a0a", height=46)
-        hdr.pack(fill="x")
-        hdr.pack_propagate(False)
-        tk.Label(hdr, text="Clips Builder", font=(FONT, 13, "bold"),
-                 bg="#0a0a0a", fg=FG).place(x=18, y=12)
-        tk.Label(hdr, text="MSV Studios", font=(FONT, 10),
-                 bg="#0a0a0a", fg=FG3).place(relx=1.0, x=-18, y=15, anchor="ne")
+  /* submit */
+  #submit-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 10px 20px;
+    float: right;
+    transition: background .15s;
+  }
+  #submit-btn:disabled { background: #2a2a2a; color: var(--fg3); cursor: not-allowed; }
+  #submit-btn.done { background: var(--green); }
+</style>
+</head>
+<body>
+<header>
+  <span class="title">Clips Builder</span>
+  <span class="sub">MSV Studios</span>
+</header>
+<main>
+  <!-- URL -->
+  <label for="yt-url">YouTube URL</label>
+  <input type="url" id="yt-url" placeholder="https://www.youtube.com/watch?v=...">
 
-        # ── scrollable body ───────────────────────────────────────────────────
-        outer = tk.Frame(self, bg=BG)
-        outer.pack(fill="both", expand=True)
+  <!-- Type -->
+  <p class="section-title" style="margin-top:18px">Type</p>
+  <div class="cat-row" id="cat-row">
+    <button class="cat-btn" data-cat="Business">Business</button>
+    <button class="cat-btn" data-cat="Technical">Technical</button>
+    <button class="cat-btn" data-cat="Storytelling">Storytelling</button>
+  </div>
 
-        self._canvas = tk.Canvas(outer, bg=BG, bd=0, highlightthickness=0)
-        vsb = tk.Scrollbar(outer, orient="vertical", command=self._canvas.yview)
-        self._body = tk.Frame(self._canvas, bg=BG)
+  <hr>
 
-        self._body.bind("<Configure>",
-                        lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
+  <!-- Clips -->
+  <p class="section-title">Clips</p>
+  <div id="clips-container"></div>
+  <button id="add-clip">+ Add clip</button>
 
-        self._win_id = self._canvas.create_window((0, 0), window=self._body, anchor="nw")
-        self._canvas.configure(yscrollcommand=vsb.set)
-        self._canvas.bind("<Configure>",
-                          lambda e: self._canvas.itemconfig(self._win_id, width=e.width))
+  <hr>
 
-        self._canvas.pack(side="left", fill="both", expand=True)
-        vsb.pack(side="right", fill="y")
-        self._canvas.bind_all("<MouseWheel>",
-                              lambda e: self._canvas.yview_scroll(-(e.delta // 120), "units"))
+  <!-- Status -->
+  <div id="status-msg"></div>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
 
-        PAD = 18
+  <!-- Submit -->
+  <button id="submit-btn">Push to Notion &rarr;</button>
+  <div style="clear:both"></div>
+</main>
 
-        # ── URL ───────────────────────────────────────────────────────────────
-        tk.Label(self._body, text="YouTube URL", font=(FONT, 11),
-                 bg=BG, fg=FG2).pack(anchor="w", padx=PAD, pady=(18, 4))
-        self._url = tk.StringVar()
-        tk.Entry(self._body, textvariable=self._url,
-                 bg=BG2, fg=FG, insertbackground=FG, font=(FONT, 12),
-                 bd=0, highlightthickness=1, highlightbackground=BORD,
-                 relief="flat").pack(fill="x", padx=PAD, ipady=9)
+<script>
+  // ── category selection ────────────────────────────────────────────────
+  let selectedCat = '';
+  document.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedCat = btn.dataset.cat;
+      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
 
-        # ── Type ──────────────────────────────────────────────────────────────
-        tk.Label(self._body, text="Type", font=(FONT, 11),
-                 bg=BG, fg=FG2).pack(anchor="w", padx=PAD, pady=(16, 6))
-        cat_row = tk.Frame(self._body, bg=BG)
-        cat_row.pack(anchor="w", padx=PAD)
-        self._cat_btns = {}
-        for c in ("Business", "Technical", "Storytelling"):
-            btn = tk.Button(cat_row, text=c, font=(FONT, 11), bd=0, relief="flat",
-                            padx=14, pady=7, cursor="hand2",
-                            command=lambda x=c: self._pick_cat(x))
-            btn.pack(side="left", padx=(0, 8))
-            self._cat_btns[c] = btn
-        self._refresh_cats()
+  // ── clip rows ─────────────────────────────────────────────────────────
+  let clipCount = 0;
 
-        # ── Clips ─────────────────────────────────────────────────────────────
-        tk.Frame(self._body, bg=BORD, height=1).pack(fill="x", padx=PAD, pady=(18, 0))
-        tk.Label(self._body, text="Clips", font=(FONT, 12, "bold"),
-                 bg=BG, fg=FG).pack(anchor="w", padx=PAD, pady=(10, 10))
-        self._clips_frame = tk.Frame(self._body, bg=BG)
-        self._clips_frame.pack(fill="x", padx=PAD)
-        self._add_clip_row()  # start with Clip 1
+  function addClip() {
+    clipCount++;
+    const idx = clipCount;
+    const card = document.createElement('div');
+    card.className = 'clip-card';
+    card.dataset.idx = idx;
+    card.innerHTML = `
+      <div class="clip-header">
+        <span class="clip-num">Clip ${idx}</span>
+        <div class="clip-name">
+          <label>Name</label>
+          <input type="text" class="clip-name-input" placeholder="optional">
+        </div>
+      </div>
+      <div class="ts-row">
+        <div class="field">
+          <label>Start</label>
+          <input type="text" class="clip-start" placeholder="mm:ss">
+          <span class="ts-hint">ss or mm:ss or hh:mm:ss</span>
+        </div>
+        <div class="field">
+          <label>End</label>
+          <input type="text" class="clip-end" placeholder="mm:ss">
+          <span class="ts-hint"></span>
+        </div>
+      </div>
+      <label>Notes</label>
+      <textarea class="clip-notes" placeholder="optional"></textarea>
+    `;
+    // auto-add next clip when both timestamps filled
+    let triggered = false;
+    function checkAutoAdd() {
+      if (triggered) return;
+      const s = card.querySelector('.clip-start').value.trim();
+      const e = card.querySelector('.clip-end').value.trim();
+      if (s && e) { triggered = true; addClip(); }
+    }
+    card.querySelector('.clip-start').addEventListener('input', checkAutoAdd);
+    card.querySelector('.clip-end').addEventListener('input', checkAutoAdd);
+    document.getElementById('clips-container').appendChild(card);
+    card.querySelector('.clip-name-input').focus();
+  }
 
-        # ── Status + submit ───────────────────────────────────────────────────
-        tk.Frame(self._body, bg=BORD, height=1).pack(fill="x", padx=PAD, pady=(14, 0))
-        bot = tk.Frame(self._body, bg=BG)
-        bot.pack(fill="x", padx=PAD, pady=(10, 22))
+  document.getElementById('add-clip').addEventListener('click', addClip);
+  addClip(); // seed Clip 1
 
-        self._status_var = tk.StringVar(value="")
-        tk.Label(bot, textvariable=self._status_var, font=(FONT, 10),
-                 bg=BG, fg=FG2, anchor="w").pack(fill="x", pady=(0, 6))
+  // ── status helpers ────────────────────────────────────────────────────
+  function setStatus(msg, pct) {
+    document.getElementById('status-msg').textContent = msg;
+    if (pct !== undefined)
+      document.getElementById('progress-bar').style.width = (pct * 100) + '%';
+  }
 
-        self._prog = tk.Canvas(bot, bg=BG3, height=3, bd=0, highlightthickness=0)
-        self._prog.pack(fill="x", pady=(0, 10))
+  // ── submit ────────────────────────────────────────────────────────────
+  document.getElementById('submit-btn').addEventListener('click', async () => {
+    const url = document.getElementById('yt-url').value.trim();
+    if (!url) { setStatus('⚠  Enter a YouTube URL'); return; }
+    if (!selectedCat) { setStatus('⚠  Select a type'); return; }
 
-        self._btn = tk.Button(bot, text="Push to Notion →",
-                              font=(FONT, 12, "bold"),
-                              bg=ACCENT, fg="white", bd=0, relief="flat",
-                              padx=20, pady=10, cursor="hand2",
-                              activebackground="#cc0029", activeforeground="white",
-                              command=self._submit)
-        self._btn.pack(anchor="e")
+    const clips = [];
+    let valid = true;
+    document.querySelectorAll('.clip-card').forEach(card => {
+      const s = card.querySelector('.clip-start').value.trim();
+      const e = card.querySelector('.clip-end').value.trim();
+      if (!s && !e) return;
+      if (!s || !e) { setStatus(`⚠  Clip ${card.dataset.idx}: fill in both timestamps`); valid = false; return; }
+      clips.push({
+        start: s,
+        end:   e,
+        notes: card.querySelector('.clip-notes').value.trim(),
+        name:  card.querySelector('.clip-name-input').value.trim(),
+      });
+    });
+    if (!valid) return;
+    if (!clips.length) { setStatus('⚠  Add at least one clip with timestamps'); return; }
 
-    # ── cat toggle ─────────────────────────────────────────────────────────────
-    def _pick_cat(self, cat):
-        self._cat.set(cat)
-        self._refresh_cats()
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Working…';
+    setStatus('Starting…', 0.02);
 
-    def _refresh_cats(self):
-        sel = self._cat.get()
-        for c, btn in self._cat_btns.items():
-            btn.config(bg=ACCENT if c == sel else BG3,
-                       fg="white" if c == sel else FG2)
+    const res = await fetch('/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url, category: selectedCat, clips}),
+    });
+    const {job_id} = await res.json();
 
-    # ── dynamic clips ──────────────────────────────────────────────────────────
-    def _add_clip_row(self):
-        idx = len(self._clip_rows) + 1
-        row = ClipRow(self._clips_frame, idx, on_filled=self._add_clip_row)
-        self._clip_rows.append(row)
-        self._body.update_idletasks()
-        self._canvas.yview_moveto(1.0)
+    // Stream SSE progress
+    const es = new EventSource(`/progress/${job_id}`);
+    es.onmessage = ev => {
+      const d = JSON.parse(ev.data);
+      if (d.type === 'progress') {
+        setStatus(d.msg, d.pct);
+      } else if (d.type === 'done') {
+        setStatus(`✓  Added "${d.title}" to Notion!`, 1.0);
+        btn.textContent = '✓ Done';
+        btn.classList.add('done');
+        es.close();
+      } else if (d.type === 'error') {
+        setStatus(`✗  ${d.msg}`, 0);
+        btn.disabled = false;
+        btn.textContent = 'Push to Notion →';
+        btn.classList.remove('done');
+        es.close();
+      }
+    };
+  });
+</script>
+</body>
+</html>
+"""
 
-    # ── progress bar ───────────────────────────────────────────────────────────
-    def _set_status(self, msg, p=None):
-        self._status_var.set(msg)
-        if p is not None:
-            self._prog.update_idletasks()
-            w = max(self._prog.winfo_width(), 1)
-            self._prog.delete("all")
-            self._prog.create_rectangle(0, 0, w,     3, fill=BG3,    outline="")
-            self._prog.create_rectangle(0, 0, w * p, 3, fill=ACCENT, outline="")
+@app.route("/")
+def index():
+    return HTML
 
-    # ── submit ─────────────────────────────────────────────────────────────────
-    def _submit(self):
-        if self._busy: return
+@app.route("/submit", methods=["POST"])
+def submit():
+    data     = request.get_json(force=True)
+    url      = data["url"]
+    category = data["category"]
+    raw_clips= data["clips"]
 
-        url = self._url.get().strip()
-        if not url:
-            self._set_status("⚠  Enter a YouTube URL"); return
-        cat = self._cat.get()
-        if not cat:
-            self._set_status("⚠  Select a type"); return
+    # Validate & parse clips
+    clips = []
+    for i, c in enumerate(raw_clips, 1):
+        s = parse_ts(c["start"])
+        e = parse_ts(c["end"])
+        if e <= s:
+            return jsonify({"error": f"Clip {i}: end must be after start"}), 400
+        clips.append({"start": s, "end": e, "notes": c.get("notes", ""), "name": c.get("name", "")})
 
-        clips = []
-        for row in self._clip_rows:
-            d = row.data()
-            if not d["start"] and not d["end"]: continue
-            if not d["start"] or not d["end"]:
-                self._set_status(f"⚠  Clip {row.idx}: fill in both timestamps"); return
-            try:
-                s = parse_ts(d["start"])
-                e = parse_ts(d["end"])
-            except ValueError as ex:
-                self._set_status(f"⚠  Clip {row.idx}: {ex}"); return
-            if e <= s:
-                self._set_status(f"⚠  Clip {row.idx}: end must be after start"); return
-            clips.append({"start": s, "end": e, "notes": d["notes"], "name": d["name"]})
+    import uuid
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = []
 
-        if not clips:
-            self._set_status("⚠  Add at least one clip with timestamps"); return
+    def worker():
+        q = _jobs[job_id]
+        def status(msg, pct=None):
+            q.append(json.dumps({"type": "progress", "msg": msg, "pct": pct or 0}))
 
-        self._busy = True
-        self._btn.config(state="disabled", bg="#2a2a2a", fg=FG3)
-        threading.Thread(target=self._run, args=(url, cat, clips), daemon=True).start()
-
-    def _run(self, url, cat, clips):
-        def st(msg, p=None):
-            self.after(0, lambda m=msg, pr=p: self._set_status(m, pr))
         try:
-            st("Fetching video info…", 0.04)
+            status("Fetching video info…", 0.04)
             info = get_video_info(url)
 
-            st("Fetching channel avatar…", 0.08)
+            status("Fetching channel avatar…", 0.08)
             ch_url = info.get("channel_url") or info.get("uploader_url", "")
             avatar = get_channel_avatar(ch_url) if ch_url else None
 
-            title = run_pipeline(url, info, avatar, cat, clips, st)
-
-            self.after(0, lambda: self._set_status(f'✓  Added "{title}" to Notion!', 1.0))
-            self.after(0, lambda: self._btn.config(state="normal", bg=GREEN, fg="white", text="✓ Done"))
+            title = run_pipeline(url, info, avatar, category, clips, status)
+            q.append(json.dumps({"type": "done", "title": title}))
         except Exception as e:
-            err = str(e)[:120]
-            self.after(0, lambda: self._set_status(f"✗  {err}", 0.0))
-            self.after(0, lambda: self._btn.config(
-                state="normal", bg=ACCENT, fg="white", text="Push to Notion →"))
-            self._busy = False
+            q.append(json.dumps({"type": "error", "msg": str(e)[:200]}))
 
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+@app.route("/progress/<job_id>")
+def progress(job_id):
+    def stream():
+        sent = 0
+        while True:
+            q = _jobs.get(job_id, [])
+            while sent < len(q):
+                yield f"data: {q[sent]}\n\n"
+                sent += 1
+                msg = json.loads(q[sent - 1])
+                if msg["type"] in ("done", "error"):
+                    _jobs.pop(job_id, None)
+                    return
+            time.sleep(0.5)
+    return Response(stream(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 if __name__ == "__main__":
-    App().mainloop()
+    app.run(host="0.0.0.0", port=5000, threaded=True)
