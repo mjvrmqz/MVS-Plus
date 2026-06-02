@@ -12,8 +12,13 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install flask pillow requests yt-dlp
-      - name: Install ffmpeg
-        run: sudo apt-get install -y --fix-missing ffmpeg
+      - name: Install ffmpeg (static build)
+        run: |
+          wget -q https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+          tar xf ffmpeg-release-amd64-static.tar.xz
+          sudo mv ffmpeg-*-static/ffmpeg /usr/local/bin/ffmpeg
+          sudo mv ffmpeg-*-static/ffprobe /usr/local/bin/ffprobe
+          ffmpeg -version
       - name: Install cloudflared
         run: |
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
