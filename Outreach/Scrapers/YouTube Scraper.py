@@ -246,7 +246,7 @@ def notion_get_existing() -> tuple:
 
             if select_val == "Leads" and post_url:
                 existing_urls.add(post_url)
-            if channel_id:
+            if select_val == "Leads" and channel_id:
                 existing_channels.add(channel_id)
 
         if not data.get("has_more"):
@@ -500,13 +500,13 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
                     log(f"    ⚠ Could not fetch channel images: {e}")
                     images = {"profile_pic": None, "banner": None}
 
-            # Skip channel entirely if already logged (leads or scraped)
+            # Skip channel entirely if already confirmed as a Lead
             if channel_id in already_seen_channels:
-                log(f"  ~ skip (channel already logged) | {channel_name}")
+                log(f"  ~ skip (channel already a Lead) | {channel_name}")
                 continue
 
-            if images["subscribers"] < MIN_SUBSCRIBERS:
-                log(f"  ~ skip (too small: {images['subscribers']:,} subs) | {channel_name}")
+            if images.get("subscribers", 0) < MIN_SUBSCRIBERS:
+                log(f"  ~ skip (too small: {images.get('subscribers', 0):,} subs) | {channel_name}")
                 continue
 
             if matched:
@@ -537,7 +537,7 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
                     banner=images["banner"]
                 )
                 already_scanned.add(video_url)
-                already_seen_channels.add(channel_id)
+                already_seen_channels.add(channel_id)  # only block future adds for Leads
 
                 matches.append({
                     "search_query": search_query,
@@ -562,7 +562,7 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
                     banner=images["banner"]
                 )
                 already_scanned.add(video_url)
-                already_seen_channels.add(channel_id)
+                # NOTE: do NOT add to already_seen_channels for Scraped entries
 
                 if consecutive_misses >= MAX_CONSECUTIVE_MISSES:
                     log(f"  ↩ {MAX_CONSECUTIVE_MISSES} consecutive misses — moving on.")
