@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from calendar import monthcalendar, month_abbr
 
 # ── Config ────────────────────────────────────────────────────
-NOTION_TOKEN    = os.environ.get("NOTION_KEY", "")
+NOTION_KEY    = os.environ.get("NOTION_KEY", "")
 SCREENING_DB_ID = "28d1691964b48065b59ec1f0b293f91f"
 OUTREACH_DB_ID  = "28d1691964b480a88260e3871d01824c"
 
