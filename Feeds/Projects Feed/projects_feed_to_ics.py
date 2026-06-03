@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from ics import Calendar, Event
 
 # === CONFIG ===
-NOTION_TOKEN = os.environ.get("NOTION_KEY", "")
+NOTION_KEY = os.environ.get("NOTION_KEY", "")
 DATABASE_ID  = "27d1691964b480639559d787b664900a"
 
 if not NOTION_TOKEN:
     raise RuntimeError("NOTION_KEY environment variable not set.")
 
 HEADERS = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
+    "Authorization": f"Bearer {NOTION_KEY}",
     "Notion-Version": "2022-06-28",
     "Content-Type": "application/json",
 }
