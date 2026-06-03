@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 import subprocess, sys, os, io, threading, requests, ctypes, tempfile
 from pathlib import Path
-
+ 
 def pip(*pkgs):
     for p in pkgs:
         subprocess.check_call([sys.executable, "-m", "pip", "install", p, "--break-system-packages", "-q"])
-
+ 
 try:
     import objc
     from AppKit import NSApplication
 except ImportError:
     print("Installing PyObjC..."); pip("pyobjc-core", "pyobjc-framework-Cocoa")
     import objc
-
+ 
 try:
     from PIL import Image, ImageFilter, ImageEnhance
 except ImportError:
     pip("Pillow"); from PIL import Image, ImageFilter, ImageEnhance
-
+ 
 import objc
 from AppKit import (
     NSApplication, NSWindow, NSView, NSTextField,
@@ -30,16 +30,16 @@ from AppKit import (
     NSTextAlignmentCenter, NSAttributedString,
 )
 from Foundation import NSMakeRect, NSMakePoint, NSObject
-
-NOTION_TOKEN = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
+ 
+NOTION_KEY = os.environ.get("NOTION_KEY", "")
 DATABASE_ID  = "35b1691964b480a7a1abfaa510985c60"
-NOTION_HDR   = {"Authorization": f"Bearer {NOTION_TOKEN}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
-
+NOTION_HDR   = {"Authorization": f"Bearer {NOTION_KEY}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
+ 
 VIDEO_EXTS = (".mp4", ".mov", ".avi", ".mkv", ".m4v", ".webm", ".mxf", ".wmv")
-
+ 
 def c(r, g, b, a=1.0):
     return NSColor.colorWithCalibratedRed_green_blue_alpha_(r/255, g/255, b/255, a)
-
+ 
 def upload_bytes(data, filename, mime):
     import base64
     b64 = base64.b64encode(data).decode()
@@ -53,9 +53,8 @@ def upload_bytes(data, filename, mime):
     j = r.json()
     if j.get("success"): return j["data"]["link"]
     raise RuntimeError(f"imgur upload failed: {j.get('data', {}).get('error', j)}")
-
+ 
 def extract_first_frame(video_path):
-    """Extract first frame of video using ffmpeg, return PIL Image."""
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         tmp_path = tmp.name
     try:
@@ -69,12 +68,11 @@ def extract_first_frame(video_path):
     finally:
         if os.path.isfile(tmp_path):
             os.unlink(tmp_path)
-
+ 
 def make_cover(video_path):
-    """Extract first frame, crop/resize to 1500x600, blur and darken, keep under 5MB."""
     img = extract_first_frame(video_path).convert("RGB")
     w, h = img.size
-    target_ratio = 1500 / 600  # 2.5
+    target_ratio = 1500 / 600
     src_ratio = w / h
     if src_ratio > target_ratio:
         new_w = int(h * target_ratio)
@@ -87,14 +85,13 @@ def make_cover(video_path):
     img = img.resize((1500, 600), Image.LANCZOS)
     img = img.filter(ImageFilter.GaussianBlur(radius=18))
     img = ImageEnhance.Brightness(img).enhance(0.38)
-    # Try quality 88 first, step down until under 5MB
     for quality in (88, 75, 60, 45):
         buf = io.BytesIO()
         img.save(buf, "JPEG", quality=quality)
         if buf.tell() < 5 * 1024 * 1024:
             break
     return buf.getvalue()
-
+ 
 def get_next_inspiration_number():
     payload = {"filter": {"property": "title", "title": {"starts_with": "Inspiration "}}}
     r = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
@@ -111,7 +108,7 @@ def get_next_inspiration_number():
                         try: nums.append(int(name.split(" ", 1)[1]))
                         except ValueError: pass
     return max(nums) + 1 if nums else 1
-
+ 
 def push_to_notion(cover_url, filename, label):
     r = requests.get(f"https://api.notion.com/v1/databases/{DATABASE_ID}", headers=NOTION_HDR)
     title_prop = "Name"
@@ -133,30 +130,30 @@ def push_to_notion(cover_url, filename, label):
         ],
     }
     return requests.post("https://api.notion.com/v1/pages", headers=NOTION_HDR, json=payload)
-
+ 
 def process(filepath, view):
     try:
         filepath = filepath.strip().strip("{}")
         if not os.path.isfile(filepath): view.apply_state("error", "File not found"); return
         ext = Path(filepath).suffix.lower()
         if ext not in VIDEO_EXTS: view.apply_state("error", f"Unsupported: {ext}"); return
-        view.update_status("Extracting first frame\u2026", 0.15)
+        view.update_status("Extracting first frame…", 0.15)
         cover_bytes = make_cover(filepath)
-        view.update_status("Uploading cover\u2026", 0.50)
+        view.update_status("Uploading cover…", 0.50)
         cover_url = upload_bytes(cover_bytes, "cover.jpg", "image/jpeg")
-        view.update_status("Pushing to Notion\u2026", 0.80)
+        view.update_status("Pushing to Notion…", 0.80)
         label = f"Inspiration {get_next_inspiration_number()}"
         filename = Path(filepath).name
         r = push_to_notion(cover_url, filename, label)
         if r.status_code == 200:
-            view.apply_state("done", "\u2713  Added to Notion!", 1.0)
+            view.apply_state("done", "✓  Added to Notion!", 1.0)
         else:
             try: msg = r.json().get("message", "")[:80]
             except: msg = r.text[:80]
             view.apply_state("error", f"Notion {r.status_code}: {msg}")
     except Exception as e:
         view.apply_state("error", str(e)[:100])
-
+ 
 class DropView(NSView):
     def initWithFrame_(self, frame):
         self = objc.super(DropView, self).initWithFrame_(frame)
@@ -165,45 +162,45 @@ class DropView(NSView):
             self._progress = 0.0; self._callback = None
             self.registerForDraggedTypes_([NSFilenamesPboardType])
         return self
-
+ 
     def draggingEntered_(self, sender):
         if self._state in ("idle", "done", "error"):
             self._state = "hover"; self.setNeedsDisplay_(True)
         return NSDragOperationCopy
-
+ 
     def draggingExited_(self, sender):
         if self._state == "hover": self._state = "idle"; self.setNeedsDisplay_(True)
-
+ 
     def prepareForDragOperation_(self, sender): return True
-
+ 
     def performDragOperation_(self, sender):
         pb = sender.draggingPasteboard()
         paths = pb.propertyListForType_(NSFilenamesPboardType)
         if paths and self._callback:
-            self._state = "working"; self._status = "Starting\u2026"; self._progress = 0.05
+            self._state = "working"; self._status = "Starting…"; self._progress = 0.05
             self.setNeedsDisplay_(True)
             cb = self._callback; path = paths[0]
             threading.Thread(target=cb, args=(path,), daemon=True).start()
         return True
-
+ 
     def update_status(self, msg, progress=None):
         self._status = msg
         if progress is not None: self._progress = progress
         self.performSelectorOnMainThread_withObject_waitUntilDone_(b"_redraw", None, False)
-
+ 
     def apply_state(self, state, msg="", progress=None):
         self._state = state; self._status = msg
         if progress is not None: self._progress = progress
         self.performSelectorOnMainThread_withObject_waitUntilDone_(b"_redraw", None, False)
         if state == "done":
             threading.Timer(3.0, lambda: self.performSelectorOnMainThread_withObject_waitUntilDone_(b"_reset", None, False)).start()
-
+ 
     def _redraw(self): self.setNeedsDisplay_(True)
-
+ 
     def _reset(self):
         self._state = "idle"; self._status = "Drop a video here"; self._progress = 0.0
         self.setNeedsDisplay_(True)
-
+ 
     def drawRect_(self, rect):
         w = rect.size.width; h = rect.size.height; cx = w/2; cy = h/2
         bg_map = {"idle": c(22,22,22), "hover": c(18,35,18), "working": c(22,22,22), "done": c(12,26,12), "error": c(26,12,12)}
@@ -227,7 +224,7 @@ class DropView(NSView):
             lbl = "Drop video here" if self._state=="idle" else "Release to add"
             lc = c(70,70,70) if self._state=="idle" else c(75,160,75)
             txt(lbl, cy-44, 22, NSFont.systemFontOfSize_(14), lc)
-            txt("MP4 \u00b7 MOV \u00b7 MKV \u00b7 AVI \u00b7 M4V \u00b7 WEBM", cy-64, 18, NSFont.systemFontOfSize_(10), c(40,40,40))
+            txt("MP4 · MOV · MKV · AVI · M4V · WEBM", cy-64, 18, NSFont.systemFontOfSize_(10), c(40,40,40))
         elif self._state == "working":
             txt(self._status, cy-8, 22, NSFont.systemFontOfSize_(13), c(160,160,160))
             by = cy-32; bx = 40; bw = w-80
@@ -238,11 +235,11 @@ class DropView(NSView):
                 fi = NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(NSMakeRect(bx,by,fw,3),1.5,1.5)
                 c(255,0,51).setFill(); fi.fill()
         elif self._state in ("done","error"):
-            sym = "\u2713" if self._state=="done" else "\u2715"
+            sym = "✓" if self._state=="done" else "✕"
             sc = c(55,190,55) if self._state=="done" else c(190,55,55)
             txt(sym, cy+2, 44, NSFont.boldSystemFontOfSize_(36), sc)
             txt(self._status, cy-22, 22, NSFont.systemFontOfSize_(11), c(160,160,160))
-
+ 
 class AppDelegate(NSObject):
     def applicationDidFinishLaunching_(self, notif):
         screen = NSScreen.mainScreen().frame(); sw,sh = screen.size.width, screen.size.height
@@ -250,7 +247,7 @@ class AppDelegate(NSObject):
         style = NSWindowStyleMaskTitled|NSWindowStyleMaskClosable|NSWindowStyleMaskMiniaturizable
         self.win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(wx,wy,ww,wh), style, NSBackingStoreBuffered, False)
-        self.win.setTitle_("MSV Studios \u00b7 Inspiration")
+        self.win.setTitle_("MSV Studios · Inspiration")
         self.win.setBackgroundColor_(c(14,14,14))
         content = self.win.contentView()
         hdr = NSView.alloc().initWithFrame_(NSMakeRect(0, wh-50, ww, 50))
@@ -269,9 +266,9 @@ class AppDelegate(NSObject):
         self.dv._callback = lambda p: process(p, self.dv)
         content.addSubview_(self.dv)
         self.win.makeKeyAndOrderFront_(None); NSApp.activateIgnoringOtherApps_(True)
-
+ 
     def applicationShouldTerminateAfterLastWindowClosed_(self, app): return True
-
+ 
 if __name__ == "__main__":
     app = NSApplication.sharedApplication()
     delegate = AppDelegate.alloc().init()
