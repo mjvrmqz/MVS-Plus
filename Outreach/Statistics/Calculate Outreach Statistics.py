@@ -4,7 +4,7 @@ import json
 import os
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-NOTION_TOKEN = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
+NOTION_KEY = os.environ.get("NOTION_KEY", "")
 
 SCREENING_DB_ID  = "28d16919-64b4-8065-b59e-c1f0b293f91f"
 OUTREACH_DB_ID   = "28d16919-64b4-80a8-8260-e3871d01824c"
@@ -25,7 +25,7 @@ STAGE_PAGE_IDS = {
 }
 
 HEADERS = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
+    "Authorization": f"Bearer {NOTION_KEY}",
     "Content-Type": "application/json",
     "Notion-Version": "2022-06-28",
 }
