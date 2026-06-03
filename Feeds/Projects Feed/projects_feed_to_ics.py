@@ -8,7 +8,7 @@ from ics import Calendar, Event
 NOTION_KEY = os.environ.get("NOTION_KEY", "")
 DATABASE_ID  = "27d1691964b480639559d787b664900a"
 
-if not NOTION_TOKEN:
+if not NOTION_KEY:
     raise RuntimeError("NOTION_KEY environment variable not set.")
 
 HEADERS = {
