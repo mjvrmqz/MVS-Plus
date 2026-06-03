@@ -45,7 +45,7 @@ GITHUB_TITLES_URL = (
 
 # GitHub PAT with repo scope — needed to mark titles as done
 # Generate at: https://github.com/settings/tokens → New token (classic) → check 'repo'
-GITHUB_TOKEN   = "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"
+GITHUB_TOKEN   = "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"
 GITHUB_API_URL = "https://api.github.com/repos/mjvrmqz/MVS-Studios/contents/Outreach/Scrapers/Search%20Titles.txt"
 
 OUTPUT_FILE            = "scan_results.json"
