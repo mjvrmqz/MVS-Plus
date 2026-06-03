@@ -1,11 +1,8 @@
 name: YouTube Scraper
 
 on:
-  # Trigger manually from Make or any HTTP client
   repository_dispatch:
     types: [run-youtube-scraper]
-
-  # Also allow manual trigger from GitHub UI
   workflow_dispatch:
 
 jobs:
@@ -28,10 +25,10 @@ jobs:
 
       - name: Run YouTube Scraper
         env:
-          YT_API_KEY_1:   ${{ secrets.YT_API_KEY_1 }}
-          YT_API_KEY_2:   ${{ secrets.YT_API_KEY_2 }}
-          YT_API_KEY_3:   ${{ secrets.YT_API_KEY_3 }}
-          NOTION_KEY:     ${{ secrets.NOTION_KEY }}
-          GITHUB_TOKEN:   ${{ secrets.GITHUB_TOKEN }}
+          YT_API_KEY_1: ${{ secrets.YT_API_KEY_1 }}
+          YT_API_KEY_2: ${{ secrets.YT_API_KEY_2 }}
+          YT_API_KEY_3: ${{ secrets.YT_API_KEY_3 }}
+          NOTION_KEY:   ${{ secrets.NOTION_KEY }}
+          GH_PAT:       ${{ secrets.GH_PAT }}
         run: |
           python "Outreach/Scrapers/YouTube Scraper.py"
