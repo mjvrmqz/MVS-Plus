@@ -9,14 +9,15 @@
 # ─────────────────────────────────────────────────────────────
 
 import sys, requests
+import os
 
 # ── Config ────────────────────────────────────────────────────
-NOTION_TOKEN     = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
+NOTION_KEY     = os.environ.get("NOTION_KEY", "")
 OUTREACH_DB_ID   = "28d1691964b480a88260e3871d01824c"
 REPLY_RATE_DB_ID = "3601691964b480d0851cd9868b606e1f"
 
 HEADERS = {
-    "Authorization":  f"Bearer {NOTION_TOKEN}",
+    "Authorization":  f"Bearer {NOTION_KEY}",
     "Content-Type":   "application/json",
     "Notion-Version": "2022-06-28",
 }
