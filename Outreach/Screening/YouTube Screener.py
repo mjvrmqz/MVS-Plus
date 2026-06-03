@@ -40,7 +40,7 @@ from playwright.async_api import async_playwright, TimeoutError as PlaywrightTim
 
 # ─── ENVIRONMENT / CREDENTIALS ────────────────────────────────────────────────
 
-NOTION_TOKEN    = os.environ["NOTION_KEY"]
+NOTION_KEY    = os.environ["NOTION_KEY"]
 
 # YouTube API keys with automatic fallback
 YT_API_KEYS = [
@@ -106,7 +106,7 @@ class YouTubeClient:
 
 def notion_headers():
     return {
-        "Authorization":  f"Bearer {NOTION_TOKEN}",
+        "Authorization":  f"Bearer {NOTION_KEY}",
         "Notion-Version": NOTION_VERSION,
         "Content-Type":   "application/json",
     }
