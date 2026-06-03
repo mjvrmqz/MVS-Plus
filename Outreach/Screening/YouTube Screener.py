@@ -5,33 +5,28 @@ Reads "Leads" from the YouTube Scraper Notion database, scores each channel
 for outreach compatibility, then creates NEW entries in the Outreach database.
 
 The source (scraper) database is NEVER modified — leads remain exactly as-is.
-
-Scoring weights (adjust here without touching logic):
 """
 
 # ─── SCORING CONSTANTS ────────────────────────────────────────────────────────
 
-WEIGHT_UPLOAD_FREQ   = 0.40   # 40%
-WEIGHT_TITLE_STYLE   = 0.40   # 40%
-WEIGHT_SOCIAL        = 0.20   # 20%
+WEIGHT_UPLOAD_FREQ  = 0.40   # 40%
+WEIGHT_TITLE_STYLE  = 0.40   # 40%
+WEIGHT_SOCIAL       = 0.20   # 20%
 
-# Upload-frequency scoring thresholds (uploads per week)
-FREQ_IDEAL_MIN       = 3.0    # lower bound of ideal range
-FREQ_IDEAL_MAX       = 4.0    # upper bound of ideal range
-FREQ_TOO_HIGH        = 5.0    # above this → heavy penalty
-FREQ_TOO_LOW         = 0.25   # below this (≈1/month) → heavy penalty
+FREQ_IDEAL_MIN      = 3.0    # ideal uploads/week lower bound
+FREQ_IDEAL_MAX      = 4.0    # ideal uploads/week upper bound
+FREQ_TOO_HIGH       = 5.0    # above this → heavy penalty
+FREQ_TOO_LOW        = 0.25   # below this (≈1/month) → heavy penalty
 
-# How many recent videos to sample for frequency + title analysis
-VIDEO_SAMPLE_SIZE    = 50
+VIDEO_SAMPLE_SIZE   = 50     # how many recent videos to analyse
+MIN_SUBSCRIBERS     = 10_000
+X_FOLLOWER_SAMPLE   = 100    # how many X followers to sample
 
-# Minimum subscribers required
-MIN_SUBSCRIBERS      = 10_000
-
-# How many X follower profiles to scrape per channel
-X_FOLLOWER_SAMPLE    = 100
+X_COOKIES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/x_cookies.json"
 
 # ─── IMPORTS ──────────────────────────────────────────────────────────────────
 
+import asyncio
 import os
 import re
 import time
@@ -41,22 +36,24 @@ from datetime import datetime
 import requests
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
 # ─── ENVIRONMENT / CREDENTIALS ────────────────────────────────────────────────
 
-NOTION_TOKEN     = os.environ["NOTION_TOKEN"]
-YOUTUBE_API_KEY  = os.environ["YOUTUBE_API_KEY"]
+NOTION_TOKEN    = os.environ["NOTION_KEY"]
 
-# Path to a Playwright storage state file that contains your logged-in X session.
-# Generate once with: playwright codegen --save-storage=x_session.json https://x.com
-X_SESSION_FILE   = os.environ.get("X_SESSION_FILE", "x_session.json")
+# YouTube API keys with automatic fallback
+YT_API_KEYS = [
+    os.environ["YT_API_KEY_1"],
+    os.environ["YT_API_KEY_2"],
+    os.environ["YT_API_KEY_3"],
+]
 
-SOURCE_DB_ID     = "3721691964b4803dbe5fe3b7bebea1d2"   # Scraper DB (read-only)
-OUTREACH_DB_ID   = "28d1691964b48065b59ec1f0b293f91f"  # Outreach DB (write)
+SOURCE_DB_ID   = "3721691964b4803dbe5fe3b7bebea1d2"   # Scraper DB (read-only)
+OUTREACH_DB_ID = "28d1691964b48065b59ec1f0b293f91f"  # Outreach DB (write)
 
-NOTION_VERSION   = "2022-06-28"
-NOTION_BASE      = "https://api.notion.com/v1"
+NOTION_VERSION = "2022-06-28"
+NOTION_BASE    = "https://api.notion.com/v1"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,13 +62,53 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# ─── YOUTUBE CLIENT WITH KEY ROTATION ─────────────────────────────────────────
+
+class YouTubeClient:
+    """
+    Wraps the YouTube API and automatically falls back to the next API key
+    if the current one hits a quota error (403).
+    """
+    def __init__(self, keys):
+        self.keys      = keys
+        self.key_index = 0
+        self.client    = self._build()
+
+    def _build(self):
+        key = self.keys[self.key_index]
+        log.info(f"Using YouTube API key #{self.key_index + 1}")
+        return build("youtube", "v3", developerKey=key)
+
+    def _rotate(self):
+        self.key_index += 1
+        if self.key_index >= len(self.keys):
+            raise RuntimeError("All YouTube API keys have been exhausted.")
+        log.warning(f"Quota hit — rotating to API key #{self.key_index + 1}")
+        self.client = self._build()
+
+    def execute(self, request_fn):
+        """
+        Pass a lambda that takes a yt client and returns a request object.
+        Retries with the next key on quota errors.
+        Example:
+            yt.execute(lambda c: c.videos().list(part="snippet", id=video_id))
+        """
+        while True:
+            try:
+                return request_fn(self.client).execute()
+            except HttpError as e:
+                if e.resp.status == 403:
+                    self._rotate()
+                else:
+                    raise
+
 # ─── NOTION HELPERS ───────────────────────────────────────────────────────────
 
 def notion_headers():
     return {
-        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Authorization":  f"Bearer {NOTION_TOKEN}",
         "Notion-Version": NOTION_VERSION,
-        "Content-Type": "application/json",
+        "Content-Type":   "application/json",
     }
 
 def notion_post(path, body):
@@ -121,7 +158,6 @@ def select_val(page, key):
     return sel.get("name", "") if sel else ""
 
 def all_urls_on_page(page):
-    """Collect every URL value from every property on a page."""
     urls = []
     for key, p in page.get("properties", {}).items():
         if not p:
@@ -148,45 +184,36 @@ def wsrv(url, w=None, h=None, blur=None, brightness=None):
     if brightness: params += f"&mod={brightness}"
     return f"https://wsrv.nl/?{params}"
 
-# ─── YOUTUBE HELPERS ──────────────────────────────────────────────────────────
-
-def build_yt():
-    return build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+# ─── YOUTUBE API CALLS ────────────────────────────────────────────────────────
 
 def get_channel_info(yt, channel_id):
-    resp  = yt.channels().list(
-        part="snippet,statistics,brandingSettings",
-        id=channel_id,
-    ).execute()
+    resp  = yt.execute(
+        lambda c: c.channels().list(part="snippet,statistics,brandingSettings", id=channel_id)
+    )
     items = resp.get("items", [])
     return items[0] if items else None
 
 def get_recent_videos(yt, channel_id, max_results=VIDEO_SAMPLE_SIZE):
     videos, page_token = [], None
     while len(videos) < max_results:
-        batch  = min(50, max_results - len(videos))
-        kwargs = dict(part="snippet", channelId=channel_id,
-                      order="date", type="video", maxResults=batch)
-        if page_token:
-            kwargs["pageToken"] = page_token
-        resp       = yt.search().list(**kwargs).execute()
+        batch = min(50, max_results - len(videos))
+        def make_request(c, pt=page_token, b=batch):
+            kwargs = dict(part="snippet", channelId=channel_id,
+                          order="date", type="video", maxResults=b)
+            if pt:
+                kwargs["pageToken"] = pt
+            return c.search().list(**kwargs)
+        resp       = yt.execute(make_request)
         videos    += resp.get("items", [])
         page_token = resp.get("nextPageToken")
         if not page_token:
             break
     return videos
 
-def video_id_from_url(url):
-    for pat in [r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", r"shorts/([A-Za-z0-9_-]{11})"]:
-        m = re.search(pat, url or "")
-        if m:
-            return m.group(1)
-    return None
-
 def get_video_title(yt, video_id):
     if not video_id:
         return ""
-    resp  = yt.videos().list(part="snippet", id=video_id).execute()
+    resp  = yt.execute(lambda c: c.videos().list(part="snippet", id=video_id))
     items = resp.get("items", [])
     return items[0]["snippet"]["title"] if items else ""
 
@@ -224,7 +251,7 @@ def upload_frequency_score(upw):
 # ─── TITLE STYLE SCORE (0–100) ────────────────────────────────────────────────
 
 def _title_features(title):
-    t = title.strip()
+    t     = title.strip()
     words = t.split()
     first = words[0].lower() if words else ""
     caps  = sum(1 for w in words if w.isupper() and len(w) > 1)
@@ -268,7 +295,7 @@ def title_style_score(lead_title, channel_titles):
         score = avg_sim / 0.45 * 40
     return round(min(100, max(0, score)))
 
-# ─── X / TWITTER SCRAPING (Playwright, logged-in session) ─────────────────────
+# ─── X / TWITTER SCRAPING ─────────────────────────────────────────────────────
 
 EDITOR_KEYWORDS = [
     "video editor", "editor", "freelance editor",
@@ -284,86 +311,160 @@ def _extract_x_username(url):
     m = re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)", url or "")
     return m.group(1) if m else None
 
-def scrape_x_followers(username, sample_size=X_FOLLOWER_SAMPLE):
-    """
-    Opens the X followers page using a saved logged-in session (x_session.json),
-    scrolls to collect follower bios, and returns (editor_count, total_count).
-    """
+def load_x_cookies():
+    log.info("Fetching X cookies from GitHub...")
+    resp = requests.get(X_COOKIES_URL, timeout=10)
+    resp.raise_for_status()
+    raw = resp.json()
+    cookies = []
+    for c in raw:
+        cookie = {
+            "name":     c.get("name", ""),
+            "value":    c.get("value", ""),
+            "domain":   c.get("domain", ".x.com"),
+            "path":     c.get("path", "/"),
+            "secure":   c.get("secure", False),
+            "httpOnly": c.get("httpOnly", False),
+        }
+        if cookie["name"] and cookie["value"]:
+            cookies.append(cookie)
+    names    = [c["name"] for c in cookies]
+    has_auth = "auth_token" in names
+    has_ct0  = "ct0" in names
+    log.info(f"Loaded {len(cookies)} cookies — auth_token: {'YES' if has_auth else 'MISSING'}, ct0: {'YES' if has_ct0 else 'MISSING'}")
+    return cookies
+
+async def _collect_followers(page, username, max_followers):
+    url = f"https://x.com/{username}/followers"
+    log.info(f"  Opening followers page: {url}")
+    await page.goto(url, wait_until="domcontentloaded")
+    await asyncio.sleep(3)
+
+    if "login" in page.url or "i/flow" in page.url:
+        log.error("Redirected to login — X cookies may be expired.")
+        return []
+
+    try:
+        await page.wait_for_selector('[data-testid="UserCell"]', timeout=15000)
+    except PlaywrightTimeout:
+        log.warning(f"  Follower cells never loaded for @{username}.")
+        return []
+
+    followers    = []
+    seen         = set()
+    last_count   = 0
+    stale_rounds = 0
+    skip_names   = {"home", "explore", "notifications", "messages", "search",
+                    "settings", "i", "login", "logout", "signup", username.lower()}
+
+    while len(followers) < max_followers and stale_rounds < 4:
+        cells = await page.query_selector_all('[data-testid="UserCell"]')
+        for cell in cells:
+            link = await cell.query_selector('a[href^="/"]')
+            if not link:
+                continue
+            href  = await link.get_attribute("href")
+            if not href:
+                continue
+            uname = href.strip("/").split("/")[0]
+            if uname and uname not in skip_names and uname not in seen:
+                seen.add(uname)
+                followers.append(uname)
+
+        if len(followers) == last_count:
+            stale_rounds += 1
+        else:
+            stale_rounds = 0
+            last_count   = len(followers)
+            log.info(f"  Collected {len(followers)} followers so far...")
+
+        if len(followers) < max_followers:
+            await page.evaluate("window.scrollBy(0, 1500)")
+            await asyncio.sleep(1.5)
+
+    log.info(f"  Final follower count: {len(followers)}")
+    return followers[:max_followers]
+
+async def _check_follower_bio(page, username):
+    try:
+        await page.goto(f"https://x.com/{username}",
+                        wait_until="domcontentloaded", timeout=15000)
+        await asyncio.sleep(1.5)
+        bio_el = await page.query_selector('[data-testid="UserDescription"]')
+        return await bio_el.inner_text() if bio_el else ""
+    except Exception:
+        return ""
+
+async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
+    cookies = load_x_cookies()
     editor_count = 0
     total_count  = 0
 
-    if not os.path.exists(X_SESSION_FILE):
-        log.warning(f"X session file not found at '{X_SESSION_FILE}'. Skipping social scrape.")
-        return 0, 0
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        context = await browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+        )
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(storage_state=X_SESSION_FILE)
-        page    = context.new_page()
+        for cookie in cookies:
+            try:
+                await context.add_cookies([cookie])
+            except Exception:
+                pass
 
-        followers_url = f"https://x.com/{username}/followers"
-        log.info(f"  Navigating to {followers_url}")
+        page = await context.new_page()
 
-        try:
-            page.goto(followers_url, timeout=30000)
-            page.wait_for_selector('[data-testid="UserCell"]', timeout=15000)
-        except PlaywrightTimeout:
-            log.warning(f"  Timed out loading X followers for @{username}")
-            browser.close()
+        # Verify session
+        await page.goto("https://x.com/home", wait_until="domcontentloaded")
+        await asyncio.sleep(3)
+        logged_in = await page.query_selector('[data-testid="SideNav_AccountSwitcher_Button"]')
+        if not logged_in:
+            log.error("X cookies didn't authenticate — please update x_cookies.json in GitHub.")
+            await browser.close()
             return 0, 0
 
-        seen_users = set()
-        scroll_attempts = 0
-        max_scrolls = sample_size // 5  # rough estimate; each scroll reveals ~5 users
+        log.info("  X session authenticated.")
 
-        while total_count < sample_size and scroll_attempts < max_scrolls + 10:
-            cells = page.query_selector_all('[data-testid="UserCell"]')
-            for cell in cells:
-                # Extract bio text from the cell
-                try:
-                    name_el = cell.query_selector('[data-testid="User-Name"]')
-                    name    = name_el.inner_text() if name_el else f"user_{total_count}"
-                    if name in seen_users:
-                        continue
-                    seen_users.add(name)
+        followers = await _collect_followers(page, x_username, sample_size)
+        if not followers:
+            await browser.close()
+            return 0, 0
 
-                    bio_el  = cell.query_selector('[data-testid="userDescription"]')
-                    bio     = bio_el.inner_text() if bio_el else ""
+        log.info(f"  Checking bios for {len(followers)} followers...")
+        for follower in followers:
+            bio = await _check_follower_bio(page, follower)
+            total_count += 1
+            if _has_editor_signals(bio):
+                editor_count += 1
+            await asyncio.sleep(1.2)
 
-                    total_count += 1
-                    if _has_editor_signals(bio):
-                        editor_count += 1
-                except Exception:
-                    pass  # skip malformed cells
-
-            if total_count >= sample_size:
-                break
-
-            # Scroll down to load more followers
-            page.evaluate("window.scrollBy(0, 800)")
-            time.sleep(1.5)
-            scroll_attempts += 1
-
-        browser.close()
+        await browser.close()
 
     return editor_count, total_count
 
 def social_score(page):
-    """
-    Find an X/Twitter URL in the Notion page, scrape followers, return (score, note).
-    """
-    all_urls = all_urls_on_page(page)
-    x_url    = next((u for u in all_urls if "twitter.com" in u or "x.com" in u), None)
+    all_urls   = all_urls_on_page(page)
+    x_url      = next((u for u in all_urls if "twitter.com" in u or "x.com" in u), None)
 
     if not x_url:
         return 50, "No X/Twitter profile found — social score neutral"
 
-    username = _extract_x_username(x_url)
-    if not username:
+    x_username = _extract_x_username(x_url)
+    if not x_username:
         return 50, "Could not parse X username — social score neutral"
 
-    log.info(f"  Scraping X followers for @{username}")
-    editor_count, total_count = scrape_x_followers(username)
+    log.info(f"  Scraping X followers for @{x_username}")
+    editor_count, total_count = asyncio.run(
+        scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE)
+    )
 
     if total_count == 0:
         return 50, "No follower data collected — social score neutral"
@@ -378,7 +479,7 @@ def social_score(page):
     elif ratio > 0:
         score = 30
     else:
-        score = 20  # slight negative, not disqualifying
+        score = 20
 
     return score, note
 
@@ -394,13 +495,13 @@ def compatibility_rate(freq_score, title_score, soc_score):
 # ─── OUTREACH ENTRY CREATION ──────────────────────────────────────────────────
 
 def create_outreach_entry(channel_info, channel_id, compat_rate):
-    snippet  = channel_info["snippet"]
-    stats    = channel_info.get("statistics", {})
-    branding = channel_info.get("brandingSettings", {})
+    snippet   = channel_info["snippet"]
+    stats     = channel_info.get("statistics", {})
+    branding  = channel_info.get("brandingSettings", {})
 
-    name      = snippet.get("title", "Unknown")
-    subs      = stats.get("subscriberCount", "0")
-    thumb_url = (
+    name       = snippet.get("title", "Unknown")
+    subs       = stats.get("subscriberCount", "0")
+    thumb_url  = (
         snippet.get("thumbnails", {}).get("high", {}).get("url") or
         snippet.get("thumbnails", {}).get("default", {}).get("url") or ""
     )
@@ -438,7 +539,7 @@ def create_outreach_entry(channel_info, channel_id, compat_rate):
 
 def main():
     log.info("Starting YouTube Screener")
-    yt = build_yt()
+    yt = YouTubeClient(YT_API_KEYS)
 
     log.info("Fetching Leads from Notion scraper database (read-only)...")
     all_pages = query_database(SOURCE_DB_ID)
@@ -456,15 +557,15 @@ def main():
 
         log.info(f"Processing channel: {channel_id}")
 
-        # Fetch channel info from YouTube
+        # Fetch channel info
         try:
             ch_info = get_channel_info(yt, channel_id)
-        except HttpError as e:
-            log.error(f"  YouTube API error: {e}")
+        except Exception as e:
+            log.error(f"  YouTube error: {e}")
             continue
 
         if not ch_info:
-            log.warning(f"  Channel not found on YouTube, skipping")
+            log.warning("  Channel not found on YouTube, skipping")
             continue
 
         subs = int(ch_info.get("statistics", {}).get("subscriberCount", 0))
@@ -475,7 +576,7 @@ def main():
         # Fetch recent videos
         try:
             videos = get_recent_videos(yt, channel_id)
-        except HttpError as e:
+        except Exception as e:
             log.error(f"  Could not fetch videos: {e}")
             videos = []
 
@@ -495,7 +596,7 @@ def main():
         if video_id:
             try:
                 lead_title = get_video_title(yt, video_id)
-            except HttpError:
+            except Exception:
                 pass
         t_score = title_style_score(lead_title, channel_titles)
         log.info(f"  Title style: {t_score}  (lead title: '{lead_title}')")
@@ -508,7 +609,7 @@ def main():
         compat = compatibility_rate(f_score, t_score, s_score)
         log.info(f"  → Compatibility Rate: {compat}%")
 
-        # Step 6: Create NEW entry in outreach DB (scraper DB untouched)
+        # Step 6: Create new entry in outreach DB (scraper DB untouched)
         try:
             result = create_outreach_entry(ch_info, channel_id, compat)
             log.info(f"  Outreach entry created: {result.get('url', result.get('id'))}")
@@ -518,6 +619,13 @@ def main():
         time.sleep(0.5)
 
     log.info("YouTube Screener complete.")
+
+def video_id_from_url(url):
+    for pat in [r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", r"shorts/([A-Za-z0-9_-]{11})"]:
+        m = re.search(pat, url or "")
+        if m:
+            return m.group(1)
+    return None
 
 if __name__ == "__main__":
     main()
