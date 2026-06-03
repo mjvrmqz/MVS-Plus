@@ -26,10 +26,10 @@ except ImportError:
     pip("yt-dlp"); import yt_dlp
 
 # ── constants ──────────────────────────────────────────────────────────────────
-NOTION_TOKEN = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
+NOTION_KEY = os.environ.get("NOTION_KEY", "")
 DATABASE_ID  = "35c1691964b4800f9d73d71d01cb5e2f"
 NOTION_HDR   = {
-    "Authorization":  f"Bearer {NOTION_TOKEN}",
+    "Authorization":  f"Bearer {NOTION_KEY}",
     "Content-Type":   "application/json",
     "Notion-Version": "2022-06-28",
 }
