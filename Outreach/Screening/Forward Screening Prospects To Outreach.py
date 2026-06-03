@@ -11,12 +11,12 @@ from datetime import datetime, timedelta
 from calendar import monthcalendar, month_abbr
 
 # ── Config ────────────────────────────────────────────────────
-NOTION_TOKEN    = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
+NOTION_TOKEN    = os.environ.get("NOTION_KEY", "")
 SCREENING_DB_ID = "28d1691964b48065b59ec1f0b293f91f"
 OUTREACH_DB_ID  = "28d1691964b480a88260e3871d01824c"
 
 HEADERS = {
-    "Authorization":  f"Bearer {NOTION_TOKEN}",
+    "Authorization":  f"Bearer {NOTION_KEY}",
     "Content-Type":   "application/json",
     "Notion-Version": "2022-06-28",
 }
