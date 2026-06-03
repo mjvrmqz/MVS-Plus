@@ -14,6 +14,7 @@ Usage:
     /opt/homebrew/bin/python3.13 "YouTube Scraper.py"
 """
 
+import os
 import re
 import time
 import json
@@ -26,26 +27,25 @@ from googleapiclient.errors import HttpError
 from rapidfuzz import fuzz
 
 # ─────────────────────────────────────────────
-#  CONFIG
+#  CONFIG — reads from environment variables
+#  (set as GitHub Actions secrets, or export
+#   them in your shell for local runs)
 # ─────────────────────────────────────────────
-API_KEYS = [
-    "AIzaSyCwt4H-6fNTXFQx7fiRMGFa45C-boqEMkQ",
-    "AIzaSyDIH1wU3ueMnx_285WOk-S2c6FEs3TnsbE",
-    "AIzaSyAgh3AHIzJfEQzO3Bfy92i8sItT43ROLYg",
-    # add more keys here — no limit
-]
+API_KEYS = [k for k in [
+    os.environ.get("YT_API_KEY_1"),
+    os.environ.get("YT_API_KEY_2"),
+    os.environ.get("YT_API_KEY_3"),
+] if k]
 
-NOTION_KEY    = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
-NOTION_DB_ID  = "3721691964b4803dbe5fe3b7bebea1d2"
+NOTION_KEY   = os.environ.get("NOTION_KEY", "")
+NOTION_DB_ID = "3721691964b4803dbe5fe3b7bebea1d2"
 
 GITHUB_TITLES_URL = (
     "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/main/"
     "Outreach/Scrapers/Search%20Titles.txt"
 )
 
-# GitHub PAT with repo scope — needed to mark titles as done
-# Generate at: https://github.com/settings/tokens → New token (classic) → check 'repo'
-GITHUB_TOKEN   = "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"
+GITHUB_TOKEN   = os.environ.get("GH_PAT", "")
 GITHUB_API_URL = "https://api.github.com/repos/mjvrmqz/MVS-Studios/contents/Outreach/Scrapers/Search%20Titles.txt"
 
 OUTPUT_FILE            = "scan_results.json"
@@ -118,9 +118,8 @@ def load_titles_from_github() -> tuple:
 
     all_lines = resp.text.splitlines()
 
-    # Get the file SHA (needed to write back)
     sha = None
-    if GITHUB_TOKEN != "YOUR_GITHUB_PAT_HERE":
+    if GITHUB_TOKEN:
         meta = requests.get(GITHUB_API_URL, headers=github_headers(), timeout=10)
         if meta.status_code == 200:
             sha = meta.json().get("sha")
@@ -135,9 +134,9 @@ def load_titles_from_github() -> tuple:
 
 def mark_title_done(title: str, all_lines: list, sha: str) -> list:
     """Appends ' ✓' to the matching line and pushes the file back to GitHub."""
-    if GITHUB_TOKEN == "YOUR_GITHUB_PAT_HERE":
+    if not GITHUB_TOKEN:
         log("  ⚠ No GitHub token set — skipping mark-as-done")
-        return all_lines
+        return all_lines, sha
 
     updated = []
     for line in all_lines:
@@ -158,7 +157,6 @@ def mark_title_done(title: str, all_lines: list, sha: str) -> list:
     resp = requests.put(GITHUB_API_URL, headers=github_headers(), json=payload, timeout=15)
     if resp.status_code in (200, 201):
         log(f"  ✓ GitHub: marked done → \"{title[:60]}\"")
-        # Update SHA for next write in the same run
         new_sha = resp.json().get("content", {}).get("sha") or resp.json().get("commit", {}).get("sha")
         return updated, new_sha
     else:
@@ -195,10 +193,6 @@ def extract_social_links(text: str) -> dict:
 # ─────────────────────────────────────────────
 
 def notion_probe_db():
-    """
-    Fetches the DB schema and prints all property names + types.
-    Run once to verify exact property names in your Notion DB.
-    """
     url  = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}"
     resp = requests.get(url, headers=notion_headers())
     data = resp.json()
@@ -225,11 +219,6 @@ def notion_headers() -> dict:
 
 
 def notion_get_existing() -> tuple:
-    """
-    Returns (existing_video_urls, existing_channel_ids).
-    Video URLs: only Leads (to avoid re-scanning confirmed matches).
-    Channel IDs: all entries (Leads + Scraped) so we never log the same channel twice.
-    """
     existing_urls     = set()
     existing_channels = set()
     url     = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}/query"
@@ -293,20 +282,13 @@ def notion_add_entry(video_id: str, video_title: str, channel_id: str, channel_n
         "properties": properties,
     }
 
-    # Icon = channel profile pic
-    # YouTube CDN URLs (yt3.ggpht.com) are rejected by Notion — proxy through wsrv.nl
     if profile_pic:
         payload["icon"] = {"type": "external", "external": {"url": proxy(profile_pic)}}
-        log(f"    🖼  icon url: {proxy(profile_pic)}")
 
-    # Cover = channel banner — darkened and blurred via wsrv.nl
-    # bannerExternalUrl is already a complete URL — do NOT append =maxresdefault
     if banner:
         safe_banner = f"https://wsrv.nl/?url={requests.utils.quote(banner, safe='')}&blur=8&brightness=40"
         payload["cover"] = {"type": "external", "external": {"url": safe_banner}}
 
-    # Page body = profile pic as image block
-    # caption:[] is required by Notion's block schema
     if profile_pic:
         payload["children"] = [
             {
@@ -476,7 +458,6 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
                 log(f"  ~ skip (too short: {duration}s) | \"{video_title[:60]}\"")
                 continue
 
-            # Skip videos older than 2 years — don't log to Notion at all
             published_at = item["snippet"].get("publishedAt", "")
             if published_at:
                 pub_date = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
@@ -487,7 +468,6 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
 
             matched, score = is_similar(video_title, search_query)
 
-            # Fetch images for ALL videos — scraped and leads both get icon/cover
             try:
                 time.sleep(REQUEST_DELAY)
                 images = get_channel_images(channel_id)
@@ -498,9 +478,8 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
                     images = get_channel_images(channel_id)
                 else:
                     log(f"    ⚠ Could not fetch channel images: {e}")
-                    images = {"profile_pic": None, "banner": None}
+                    images = {"profile_pic": None, "banner": None, "subscribers": 0}
 
-            # Skip channel entirely if already confirmed as a Lead
             if channel_id in already_seen_channels:
                 log(f"  ~ skip (channel already a Lead) | {channel_name}")
                 continue
@@ -537,7 +516,7 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
                     banner=images["banner"]
                 )
                 already_scanned.add(video_url)
-                already_seen_channels.add(channel_id)  # only block future adds for Leads
+                already_seen_channels.add(channel_id)
 
                 matches.append({
                     "search_query": search_query,
@@ -584,17 +563,15 @@ def scan_title(search_query: str, already_scanned: set, already_seen_channels: s
 # ─────────────────────────────────────────────
 
 def main():
-    if not any(k not in ("YOUR_YOUTUBE_API_KEY_1", "YOUR_YOUTUBE_API_KEY_2", "YOUR_YOUTUBE_API_KEY_3") for k in API_KEYS):
-        print("❌ Set your YouTube API keys in the CONFIG section.")
+    if not API_KEYS:
+        print("❌ No YouTube API keys found. Set YT_API_KEY_1/2/3 environment variables.")
         return
-    if NOTION_KEY == "YOUR_NOTION_KEY_HERE":
-        print("❌ Set your Notion key in the CONFIG section.")
+    if not NOTION_KEY:
+        print("❌ No Notion key found. Set NOTION_KEY environment variable.")
         return
-    if GITHUB_TOKEN == "YOUR_GITHUB_PAT_HERE":
-        log("⚠ No GitHub PAT set — titles will NOT be marked as done after scanning.")
-        log("  Get one at: https://github.com/settings/tokens → New token (classic) → repo scope")
+    if not GITHUB_TOKEN:
+        log("⚠ No GitHub PAT found (GH_PAT env var) — titles will NOT be marked as done.")
 
-    # Probe DB schema once at startup so you can see exact property names
     notion_probe_db()
 
     titles, all_lines, sha  = load_titles_from_github()
@@ -606,7 +583,6 @@ def main():
         matches = scan_title(title, already_scanned, already_seen_channels)
         all_results.extend(matches)
 
-        # Mark this title as done in GitHub
         all_lines, sha = mark_title_done(title, all_lines, sha)
 
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
