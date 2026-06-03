@@ -6,6 +6,7 @@
 # ─────────────────────────────────────────────────────────────
 
 import sys, json, requests, tkinter as tk
+import os
 from tkinter import ttk, font as tkfont
 from datetime import datetime, timedelta
 from calendar import monthcalendar, month_abbr
