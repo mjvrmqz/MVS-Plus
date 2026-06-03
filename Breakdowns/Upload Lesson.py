@@ -7,6 +7,7 @@ Paste a YouTube link → pick type → define clips with timestamps & notes
 
 import subprocess, sys, os, io, threading, requests, json, re
 import random, tempfile, base64, glob, time
+import os
 from pathlib import Path
 from flask import Flask, request, jsonify, Response
 
