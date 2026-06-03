@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import subprocess, sys, os, io, threading, requests, ctypes, tempfile
+import os
 from pathlib import Path
  
 def pip(*pkgs):
