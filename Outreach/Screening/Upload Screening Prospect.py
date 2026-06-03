@@ -6,10 +6,11 @@
 # ─────────────────────────────────────────────────────────────
 
 import subprocess, json, sys, os, re, requests, statistics
+import os
 from datetime import datetime
 
 # ── Config ────────────────────────────────────────────────────
-NOTION_TOKEN  = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
+NOTION_KEY  = os.environ.get("NOTION_KEY", "")
 DATABASE_ID   = "28d1691964b48065b59ec1f0b293f91f"
 YTDLP         = "/Library/Frameworks/Python.framework/Versions/3.13/bin/yt-dlp"
 SAMPLE_VIDEOS = 15   # videos used for engagement / frequency stats
@@ -337,7 +338,7 @@ def push_to_notion(name, url, source, schema, stats=None, avatar_url=None, banne
     r = requests.post(
         "https://api.notion.com/v1/pages",
         headers={
-            "Authorization":  f"Bearer {NOTION_TOKEN}",
+            "Authorization":  f"Bearer {NOTION_KEY}",
             "Content-Type":   "application/json",
             "Notion-Version": "2022-06-28",
         },
