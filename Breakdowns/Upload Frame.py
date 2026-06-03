@@ -4,9 +4,9 @@ from pathlib import Path
 from flask import Flask, request, jsonify
 from PIL import Image, ImageFilter, ImageEnhance
 
-NOTION_TOKEN = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
+NOTION_KEY = os.environ.get("NOTION_KEY", "")
 DATABASE_ID  = "3531691964b480ca8a4cf0dfcd109915"
-NOTION_HDR   = {"Authorization": f"Bearer {NOTION_TOKEN}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
+NOTION_HDR   = {"Authorization": f"Bearer {NOTION_KEY}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
 
 app = Flask(__name__)
 
