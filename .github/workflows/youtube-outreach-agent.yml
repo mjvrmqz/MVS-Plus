@@ -43,4 +43,4 @@ jobs:
           YT_API_KEY_3: ${{ secrets.YT_API_KEY_3 }}
           NOTION_KEY:   ${{ secrets.NOTION_KEY }}
         run: |
-          python "Outreach/Screening/YouTube Screener.py"
+          python "Outreach/Screening/YouTube/YouTube Screener.py"
