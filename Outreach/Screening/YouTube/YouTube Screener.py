@@ -49,8 +49,8 @@ YT_API_KEYS = [
     os.environ["YT_API_KEY_3"],
 ]
 
-SOURCE_DB_ID   = os.environ["SOURCE_DB_ID"]   # Scraper DB (read-only)
-OUTREACH_DB_ID = os.environ["OUTREACH_DB_ID"]  # Outreach DB (write)
+SOURCE_DB_ID   = os.environ["SOURCE_DB_ID"]    # Scraper DB (read-only)
+SCREENING_DB_ID = os.environ["SCREENING_DB_ID"] # Screening DB (write)
 
 NOTION_VERSION = "2022-06-28"
 NOTION_BASE    = "https://api.notion.com/v1"
@@ -540,7 +540,7 @@ def create_screening_entry(channel_info, channel_id, compat_rate):
     embed_url = wsrv(thumb_url, w=400)
 
     body = {
-        "parent": {"database_id": OUTREACH_DB_ID},
+        "parent": {"database_id": SCREENING_DB_ID},
         "icon":   {"type": "external", "external": {"url": icon_url}},
         "properties": {
             "Name":               {"title":     [{"text": {"content": name}}]},
