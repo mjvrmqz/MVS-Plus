@@ -6,7 +6,7 @@ from ics import Calendar, Event
 
 # === CONFIG ===
 NOTION_KEY = os.environ.get("NOTION_KEY", "")
-DATABASE_ID  = "28d1691964b480a88260e3871d01824c"
+OUTREACH_DB_ID  = os.environ.get("OUTREACH_DB_ID", "")
 
 if not NOTION_KEY:
     raise RuntimeError("NOTION_KEY environment variable not set.")
@@ -25,7 +25,7 @@ DATE_PROPERTIES = [
 ]
 
 def query_database(database_id):
-    url = f"https://api.notion.com/v1/databases/{database_id}/query"
+    url = f"https://api.notion.com/v1/databases/{OUTREACH_DB_ID}/query"
     results = []
     payload = {}
     while True:
@@ -70,7 +70,7 @@ def create_ics(entries):
 
 def main():
     print("Querying Outreach database...")
-    entries = query_database(DATABASE_ID)
+    entries = query_database(OUTREACH_DB_ID)
     print(f"  {len(entries)} entries found")
     create_ics(entries)
     now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
