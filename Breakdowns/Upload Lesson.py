@@ -28,7 +28,7 @@ except ImportError:
 
 # ── constants ──────────────────────────────────────────────────────────────────
 NOTION_KEY = os.environ.get("NOTION_KEY", "")
-DATABASE_ID  = "35c1691964b4800f9d73d71d01cb5e2f"
+LESSONS_DB_ID  = os.environ.get("LESSONS_DB_ID", "")
 NOTION_HDR   = {
     "Authorization":  f"Bearer {NOTION_KEY}",
     "Content-Type":   "application/json",
@@ -226,7 +226,7 @@ def run_pipeline(url, info, avatar_url, category, clips, status):
 
     status("Creating main page…", 0.10)
     main_body = {
-        "parent": {"database_id": DATABASE_ID},
+        "parent": {"database_id": LESSONS_DB_ID},
         "properties": {
             prop:   {"title":  [{"text": {"content": vid_title}}]},
             "Type": {"select": {"name": category}},
