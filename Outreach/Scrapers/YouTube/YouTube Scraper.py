@@ -42,11 +42,11 @@ SOURCE_DB_ID = os.environ.get("SOURCE_DB_ID", "")
 
 GITHUB_TITLES_URL = (
     "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/main/"
-    "Outreach/Scrapers/Search%20Titles.txt"
+    "Outreach/Scrapers/YouTube/Search%20Titles.txt"
 )
 
 GITHUB_TOKEN   = os.environ.get("GH_PAT", "")
-GITHUB_API_URL = "https://api.github.com/repos/mjvrmqz/MVS-Studios/contents/Outreach/Scrapers/Search%20Titles.txt"
+GITHUB_API_URL = "https://api.github.com/repos/mjvrmqz/MVS-Studios/contents/Outreach/Scrapers/YouTube/Search%20Titles.txt"
 
 OUTPUT_FILE            = "scan_results.json"
 SIMILARITY_THRESHOLD   = 60
