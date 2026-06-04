@@ -13,8 +13,8 @@ import os
 
 # ── Config ────────────────────────────────────────────────────
 NOTION_KEY     = os.environ.get("NOTION_KEY", "")
-OUTREACH_DB_ID   = "28d1691964b480a88260e3871d01824c"
-REPLY_RATE_DB_ID = "3601691964b480d0851cd9868b606e1f"
+OUTREACH_DB_ID   = os.environ["OUTREACH_DB_ID"]
+REPLY_RATE_DB_ID = os.environ["REPLY_RATE_DB_ID"]
 
 HEADERS = {
     "Authorization":  f"Bearer {NOTION_KEY}",
