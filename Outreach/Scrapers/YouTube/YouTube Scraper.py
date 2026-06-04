@@ -38,7 +38,7 @@ API_KEYS = [k for k in [
 ] if k]
 
 NOTION_KEY   = os.environ.get("NOTION_KEY", "")
-NOTION_DB_ID = "3721691964b4803dbe5fe3b7bebea1d2"
+SOURCE_DB_ID = os.environ.get("SOURCE_DB_ID", "")
 
 GITHUB_TITLES_URL = (
     "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/main/"
@@ -193,7 +193,7 @@ def extract_social_links(text: str) -> dict:
 # ─────────────────────────────────────────────
 
 def notion_probe_db():
-    url  = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}"
+    url  = f"https://api.notion.com/v1/databases/{SOURCE_DB_ID}"
     resp = requests.get(url, headers=notion_headers())
     data = resp.json()
     props = data.get("properties", {})
@@ -221,7 +221,7 @@ def notion_headers() -> dict:
 def notion_get_existing() -> tuple:
     existing_urls     = set()
     existing_channels = set()
-    url     = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}/query"
+    url     = f"https://api.notion.com/v1/databases/{SOURCE_DB_ID}/query"
     payload = {"page_size": 100}
     while True:
         resp = requests.post(url, headers=notion_headers(), json=payload)
@@ -278,7 +278,7 @@ def notion_add_entry(video_id: str, video_title: str, channel_id: str, channel_n
         properties["Social"] = {"url": None}
 
     payload = {
-        "parent":     {"database_id": NOTION_DB_ID},
+        "parent":     {"database_id": SOURCE_DB_ID},
         "properties": properties,
     }
 
