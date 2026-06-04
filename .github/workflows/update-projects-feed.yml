@@ -1,13 +1,10 @@
 name: Update Projects Feed
-
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 */4 * * *'
-
 permissions:
   contents: write
-
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -22,6 +19,7 @@ jobs:
       - name: Run script
         env:
           NOTION_KEY: ${{ secrets.NOTION_KEY }}
+          PROJECTS_DB_ID: ${{ secrets.PROJECTS_DB_ID }}
         run: python3 "Feeds/Projects Feed/projects_feed_to_ics.py"
       - name: Commit and push
         run: |
