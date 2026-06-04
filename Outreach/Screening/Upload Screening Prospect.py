@@ -203,7 +203,7 @@ def get_db_schema():
     r = requests.get(
         f"https://api.notion.com/v1/databases/{DATABASE_ID}",
         headers={
-            "Authorization":  f"Bearer {NOTION_TOKEN}",
+            "Authorization":  f"Bearer {NOTION_KEY}",
             "Notion-Version": "2022-06-28",
         }
     )
