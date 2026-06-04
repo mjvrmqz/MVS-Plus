@@ -21,10 +21,10 @@ import requests
 import io
 from PIL import Image, ImageFilter
 
-NOTION_TOKEN   = "ntn_U60582391564u7rDIIxeSyYXMD7aOqEaawu30A8D3wUag7"
-X_SCRAPER_DB   = "3601691964b4805e9a96fa8e17d0de76"
+NOTION_KEY   = os.environ.get("NOTION_KEY", "")
+X_SCRAPER_DB   = os.environ.get("X_SCRAPER_DB", "")
 NOTION_HEADERS = {
-    "Authorization":  f"Bearer {NOTION_TOKEN}",
+    "Authorization":  f"Bearer {NOTION_KEY}",
     "Content-Type":   "application/json",
     "Notion-Version": "2022-06-28",
 }
