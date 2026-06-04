@@ -1,4 +1,4 @@
-name: YouTube Scraper + Screener
+name: YouTube Outreach Agent
 
 on:
   schedule:
