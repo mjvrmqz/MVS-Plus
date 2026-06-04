@@ -33,7 +33,7 @@ from AppKit import (
 from Foundation import NSMakeRect, NSMakePoint, NSObject
  
 NOTION_KEY = os.environ.get("NOTION_KEY", "")
-DATABASE_ID  = "35b1691964b480a7a1abfaa510985c60"
+CLIPS_DB_ID  = os.environ.get("CLIPS_DB_ID", "")
 NOTION_HDR   = {"Authorization": f"Bearer {NOTION_KEY}", "Content-Type": "application/json", "Notion-Version": "2022-06-28"}
  
 VIDEO_EXTS = (".mp4", ".mov", ".avi", ".mkv", ".m4v", ".webm", ".mxf", ".wmv")
@@ -95,7 +95,7 @@ def make_cover(video_path):
  
 def get_next_inspiration_number():
     payload = {"filter": {"property": "title", "title": {"starts_with": "Inspiration "}}}
-    r = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
+    r = requests.post(f"https://api.notion.com/v1/databases/{CLIPS_DB_ID}/query",
                       headers=NOTION_HDR, json=payload)
     if r.status_code != 200: return 1
     pages = r.json().get("results", [])
@@ -111,13 +111,13 @@ def get_next_inspiration_number():
     return max(nums) + 1 if nums else 1
  
 def push_to_notion(cover_url, filename, label):
-    r = requests.get(f"https://api.notion.com/v1/databases/{DATABASE_ID}", headers=NOTION_HDR)
+    r = requests.get(f"https://api.notion.com/v1/databases/{CLIPS_DB_ID}", headers=NOTION_HDR)
     title_prop = "Name"
     if r.status_code == 200:
         for k, v in r.json().get("properties", {}).items():
             if v.get("type") == "title": title_prop = k; break
     payload = {
-        "parent":  {"database_id": DATABASE_ID},
+        "parent":  {"database_id": CLIPS_DB_ID},
         "cover":   {"type": "external", "external": {"url": cover_url}},
         "properties": {title_prop: {"title": [{"text": {"content": label}}]}},
         "children": [
