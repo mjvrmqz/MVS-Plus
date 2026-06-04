@@ -22,7 +22,7 @@ VIDEO_SAMPLE_SIZE   = 50     # how many recent videos to analyse
 MIN_SUBSCRIBERS     = 10_000
 X_FOLLOWER_SAMPLE   = 100    # how many X followers to sample
 
-X_COOKIES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/x_cookies.json"
+X_COOKIES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/X/x_cookies.json"
 
 # ─── IMPORTS ──────────────────────────────────────────────────────────────────
 
