@@ -20,7 +20,7 @@ FREQ_TOO_LOW        = 0.25   # below this (≈1/month) → heavy penalty
 
 VIDEO_SAMPLE_SIZE   = 50     # how many recent videos to analyse
 MIN_SUBSCRIBERS     = 10_000
-X_FOLLOWER_SAMPLE   = 100    # how many X followers to sample
+X_FOLLOWER_SAMPLE   = 300    # how many X followers to sample (name-only check)
 
 X_COOKIES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/X/x_cookies.json"
 
@@ -97,7 +97,7 @@ class YouTubeClient:
             try:
                 return request_fn(self.client).execute()
             except HttpError as e:
-                if e.resp.status == 403:
+                if e.resp.status in (403, 429):
                     self._rotate()
                 else:
                     raise
@@ -193,18 +193,49 @@ def get_channel_info(yt, channel_id):
     items = resp.get("items", [])
     return items[0] if items else None
 
+def get_uploads_playlist_id(yt, channel_id):
+    """
+    Fetches the uploads playlist ID for a channel.
+    Uses channels().list (1 quota unit) instead of search().list (100 units).
+    """
+    resp = yt.execute(
+        lambda c: c.channels().list(part="contentDetails", id=channel_id)
+    )
+    items = resp.get("items", [])
+    if not items:
+        return None
+    return items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+
 def get_recent_videos(yt, channel_id, max_results=VIDEO_SAMPLE_SIZE):
+    """
+    Fetches recent videos via playlistItems (1 unit/call) instead of
+    search.list (100 units/call) to preserve daily quota.
+    """
+    playlist_id = get_uploads_playlist_id(yt, channel_id)
+    if not playlist_id:
+        return []
+
     videos, page_token = [], None
     while len(videos) < max_results:
         batch = min(50, max_results - len(videos))
-        def make_request(c, pt=page_token, b=batch):
-            kwargs = dict(part="snippet", channelId=channel_id,
-                          order="date", type="video", maxResults=b)
+        def make_request(c, pt=page_token, b=batch, pl=playlist_id):
+            kwargs = dict(part="snippet", playlistId=pl, maxResults=b)
             if pt:
                 kwargs["pageToken"] = pt
-            return c.search().list(**kwargs)
+            return c.playlistItems().list(**kwargs)
         resp       = yt.execute(make_request)
-        videos    += resp.get("items", [])
+        # Normalise to same shape search.list returned so downstream code is unchanged
+        items = []
+        for item in resp.get("items", []):
+            sn = item.get("snippet", {})
+            items.append({
+                "snippet": {
+                    "title":       sn.get("title", ""),
+                    "publishedAt": sn.get("publishedAt", ""),
+                    "resourceId":  sn.get("resourceId", {}),
+                }
+            })
+        videos    += items
         page_token = resp.get("nextPageToken")
         if not page_token:
             break
@@ -297,15 +328,16 @@ def title_style_score(lead_title, channel_titles):
 
 # ─── X / TWITTER SCRAPING ─────────────────────────────────────────────────────
 
-EDITOR_KEYWORDS = [
-    "video editor", "editor", "freelance editor",
-    "youtube editor", "content editor", "video producer",
-    "motion designer", "video production",
+# Keywords checked against display name only (no profile page visits)
+EDITOR_NAME_KEYWORDS = [
+    "editor",
+    "video editor",
+    "vfx",
 ]
 
-def _has_editor_signals(bio_text):
-    bio_lower = bio_text.lower()
-    return any(kw in bio_lower for kw in EDITOR_KEYWORDS)
+def _name_has_editor_signals(display_name):
+    name_lower = display_name.lower()
+    return any(kw in name_lower for kw in EDITOR_NAME_KEYWORDS)
 
 def _extract_x_username(url):
     m = re.search(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]+)", url or "")
@@ -334,7 +366,11 @@ def load_x_cookies():
     log.info(f"Loaded {len(cookies)} cookies — auth_token: {'YES' if has_auth else 'MISSING'}, ct0: {'YES' if has_ct0 else 'MISSING'}")
     return cookies
 
-async def _collect_followers(page, username, max_followers):
+async def _collect_followers_with_names(page, username, max_followers):
+    """
+    Scrolls the followers page and collects (username, display_name) pairs.
+    No individual profile pages are visited — names come from the follower list cells.
+    """
     url = f"https://x.com/{username}/followers"
     log.info(f"  Opening followers page: {url}")
     await page.goto(url, wait_until="domcontentloaded")
@@ -350,7 +386,7 @@ async def _collect_followers(page, username, max_followers):
         log.warning(f"  Follower cells never loaded for @{username}.")
         return []
 
-    followers    = []
+    followers    = []   # list of (username, display_name)
     seen         = set()
     last_count   = 0
     stale_rounds = 0
@@ -360,6 +396,7 @@ async def _collect_followers(page, username, max_followers):
     while len(followers) < max_followers and stale_rounds < 4:
         cells = await page.query_selector_all('[data-testid="UserCell"]')
         for cell in cells:
+            # username from href
             link = await cell.query_selector('a[href^="/"]')
             if not link:
                 continue
@@ -367,9 +404,17 @@ async def _collect_followers(page, username, max_followers):
             if not href:
                 continue
             uname = href.strip("/").split("/")[0]
-            if uname and uname not in skip_names and uname not in seen:
-                seen.add(uname)
-                followers.append(uname)
+            if not uname or uname in skip_names or uname in seen:
+                continue
+
+            # display name from the UserName span inside the cell
+            display_name = ""
+            name_el = await cell.query_selector('[data-testid="UserName"] span')
+            if name_el:
+                display_name = (await name_el.inner_text()).strip()
+
+            seen.add(uname)
+            followers.append((uname, display_name))
 
         if len(followers) == last_count:
             stale_rounds += 1
@@ -385,17 +430,12 @@ async def _collect_followers(page, username, max_followers):
     log.info(f"  Final follower count: {len(followers)}")
     return followers[:max_followers]
 
-async def _check_follower_bio(page, username):
-    try:
-        await page.goto(f"https://x.com/{username}",
-                        wait_until="domcontentloaded", timeout=15000)
-        await asyncio.sleep(1.5)
-        bio_el = await page.query_selector('[data-testid="UserDescription"]')
-        return await bio_el.inner_text() if bio_el else ""
-    except Exception:
-        return ""
-
 async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
+    """
+    Collects up to sample_size followers and checks their display names only
+    for editor-related keywords. No profile page visits — much faster and
+    lower risk of timeout.
+    """
     cookies = load_x_cookies()
     editor_count = 0
     total_count  = 0
@@ -433,18 +473,17 @@ async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
 
         log.info("  X session authenticated.")
 
-        followers = await _collect_followers(page, x_username, sample_size)
+        followers = await _collect_followers_with_names(page, x_username, sample_size)
         if not followers:
             await browser.close()
             return 0, 0
 
-        log.info(f"  Checking bios for {len(followers)} followers...")
-        for follower in followers:
-            bio = await _check_follower_bio(page, follower)
+        log.info(f"  Checking display names for editor signals ({len(followers)} followers)...")
+        for uname, display_name in followers:
             total_count += 1
-            if _has_editor_signals(bio):
+            if _name_has_editor_signals(display_name):
                 editor_count += 1
-            await asyncio.sleep(1.2)
+                log.info(f"    Editor signal: @{uname} ({display_name!r})")
 
         await browser.close()
 
@@ -470,7 +509,7 @@ def social_score(page):
         return 50, "No follower data collected — social score neutral"
 
     ratio = editor_count / total_count
-    note  = f"{editor_count}/{total_count} sampled followers have editor signals ({ratio:.1%})"
+    note  = f"{editor_count}/{total_count} sampled followers have editor signals in name ({ratio:.1%})"
 
     if ratio >= 0.05:
         score = min(100, round(60 + ratio * 400))
@@ -496,11 +535,9 @@ def compatibility_rate(freq_score, title_score, soc_score):
 
 def create_outreach_entry(channel_info, channel_id, compat_rate):
     snippet   = channel_info["snippet"]
-    stats     = channel_info.get("statistics", {})
     branding  = channel_info.get("brandingSettings", {})
 
     name       = snippet.get("title", "Unknown")
-    subs       = stats.get("subscriberCount", "0")
     thumb_url  = (
         snippet.get("thumbnails", {}).get("high", {}).get("url") or
         snippet.get("thumbnails", {}).get("default", {}).get("url") or ""
@@ -515,8 +552,7 @@ def create_outreach_entry(channel_info, channel_id, compat_rate):
         "parent": {"database_id": OUTREACH_DB_ID},
         "icon":   {"type": "external", "external": {"url": icon_url}},
         "properties": {
-            "Name":               {"title":     [{"text": {"content": name}}]},
-            "Subscribers":        {"rich_text": [{"text": {"content": subs}}]},
+            "Name":               {"title":  [{"text": {"content": name}}]},
             "Platform Link":      {"url": f"https://www.youtube.com/channel/{channel_id}"},
             "Compatibility Rate": {"number": compat_rate},
             "Source":             {"select": {"name": "YouTube"}},
@@ -573,7 +609,7 @@ def main():
             log.info(f"  Only {subs} subscribers — skipping")
             continue
 
-        # Fetch recent videos
+        # Fetch recent videos via playlistItems (1 unit/call vs 100 for search)
         try:
             videos = get_recent_videos(yt, channel_id)
         except Exception as e:
@@ -585,12 +621,12 @@ def main():
             if v.get("snippet", {}).get("title")
         ]
 
-        # Step 2: Upload frequency
+        # Upload frequency
         upw     = uploads_per_week(videos)
         f_score = upload_frequency_score(upw)
         log.info(f"  Upload freq: {upw:.2f}/wk → score {f_score}")
 
-        # Step 4: Title style
+        # Title style
         video_id   = video_id_from_url(post_url)
         lead_title = ""
         if video_id:
@@ -601,15 +637,15 @@ def main():
         t_score = title_style_score(lead_title, channel_titles)
         log.info(f"  Title style: {t_score}  (lead title: '{lead_title}')")
 
-        # Step 3: Social / X scraping
+        # Social / X scraping
         s_score, s_note = social_score(page)
         log.info(f"  Social score: {s_score}  ({s_note})")
 
-        # Step 5: Final compatibility rate
+        # Final compatibility rate
         compat = compatibility_rate(f_score, t_score, s_score)
         log.info(f"  → Compatibility Rate: {compat}%")
 
-        # Step 6: Create new entry in outreach DB (scraper DB untouched)
+        # Create new entry in outreach DB (scraper DB untouched)
         try:
             result = create_outreach_entry(ch_info, channel_id, compat)
             log.info(f"  Outreach entry created: {result.get('url', result.get('id'))}")
