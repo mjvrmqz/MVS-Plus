@@ -45,6 +45,6 @@ jobs:
           YT_API_KEY_3: ${{ secrets.YT_API_KEY_3 }}
           NOTION_KEY:   ${{ secrets.NOTION_KEY }}
           SOURCE_DB_ID:  ${{ secrets.SOURCE_DB_ID }}
-          OUTREACH_DB_ID: ${{ secrets.OUTREACH_DB_ID }}
+          SCREENING_DB_ID: ${{ secrets.SCREENING_DB_ID }}
         run: |
           python "Outreach/Screening/YouTube/YouTube Screener.py"
