@@ -12,7 +12,7 @@ from datetime import datetime
 # ── Config ────────────────────────────────────────────────────
 NOTION_KEY  = os.environ.get("NOTION_KEY", "")
 SCREENING_DB_ID   = os.environ.get("SCREENING_DB_ID", "")
-YTDLP         = "/Library/Frameworks/Python.framework/Versions/3.13/bin/yt-dlp"
+YTDLP = "yt-dlp"
 SAMPLE_VIDEOS = 15   # videos used for engagement / frequency stats
 
 # ── Source Detection ──────────────────────────────────────────
