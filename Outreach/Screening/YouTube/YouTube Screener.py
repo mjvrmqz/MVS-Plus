@@ -2,7 +2,7 @@
 YouTube Screener.py
 
 Reads "Leads" from the YouTube Scraper Notion database, scores each channel
-for outreach compatibility, then creates NEW entries in the Outreach database.
+for outreach compatibility, then creates NEW entries in the Screening database.
 
 The source (scraper) database is NEVER modified — leads remain exactly as-is.
 """
@@ -67,7 +67,7 @@ log = logging.getLogger(__name__)
 class YouTubeClient:
     """
     Wraps the YouTube API and automatically falls back to the next API key
-    if the current one hits a quota error (403).
+    if the current one hits a quota error (403 or 429).
     """
     def __init__(self, keys):
         self.keys      = keys
@@ -87,12 +87,6 @@ class YouTubeClient:
         self.client = self._build()
 
     def execute(self, request_fn):
-        """
-        Pass a lambda that takes a yt client and returns a request object.
-        Retries with the next key on quota errors.
-        Example:
-            yt.execute(lambda c: c.videos().list(part="snippet", id=video_id))
-        """
         while True:
             try:
                 return request_fn(self.client).execute()
@@ -195,7 +189,7 @@ def get_channel_info(yt, channel_id):
 
 def get_uploads_playlist_id(yt, channel_id):
     """
-    Fetches the uploads playlist ID for a channel.
+    Gets the uploads playlist ID for a channel.
     Uses channels().list (1 quota unit) instead of search().list (100 units).
     """
     resp = yt.execute(
@@ -210,6 +204,8 @@ def get_recent_videos(yt, channel_id, max_results=VIDEO_SAMPLE_SIZE):
     """
     Fetches recent videos via playlistItems (1 unit/call) instead of
     search.list (100 units/call) to preserve daily quota.
+    Normalises output to the same shape as search.list so downstream
+    scoring logic (uploads_per_week, title_style_score) is unchanged.
     """
     playlist_id = get_uploads_playlist_id(yt, channel_id)
     if not playlist_id:
@@ -223,19 +219,16 @@ def get_recent_videos(yt, channel_id, max_results=VIDEO_SAMPLE_SIZE):
             if pt:
                 kwargs["pageToken"] = pt
             return c.playlistItems().list(**kwargs)
-        resp       = yt.execute(make_request)
-        # Normalise to same shape search.list returned so downstream code is unchanged
-        items = []
+        resp = yt.execute(make_request)
         for item in resp.get("items", []):
             sn = item.get("snippet", {})
-            items.append({
+            videos.append({
                 "snippet": {
                     "title":       sn.get("title", ""),
                     "publishedAt": sn.get("publishedAt", ""),
                     "resourceId":  sn.get("resourceId", {}),
                 }
             })
-        videos    += items
         page_token = resp.get("nextPageToken")
         if not page_token:
             break
@@ -396,7 +389,6 @@ async def _collect_followers_with_names(page, username, max_followers):
     while len(followers) < max_followers and stale_rounds < 4:
         cells = await page.query_selector_all('[data-testid="UserCell"]')
         for cell in cells:
-            # username from href
             link = await cell.query_selector('a[href^="/"]')
             if not link:
                 continue
@@ -407,7 +399,6 @@ async def _collect_followers_with_names(page, username, max_followers):
             if not uname or uname in skip_names or uname in seen:
                 continue
 
-            # display name from the UserName span inside the cell
             display_name = ""
             name_el = await cell.query_selector('[data-testid="UserName"] span')
             if name_el:
@@ -433,8 +424,7 @@ async def _collect_followers_with_names(page, username, max_followers):
 async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
     """
     Collects up to sample_size followers and checks their display names only
-    for editor-related keywords. No profile page visits — much faster and
-    lower risk of timeout.
+    for editor-related keywords. No profile page visits.
     """
     cookies = load_x_cookies()
     editor_count = 0
@@ -462,7 +452,6 @@ async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
 
         page = await context.new_page()
 
-        # Verify session
         await page.goto("https://x.com/home", wait_until="domcontentloaded")
         await asyncio.sleep(3)
         logged_in = await page.query_selector('[data-testid="SideNav_AccountSwitcher_Button"]')
@@ -531,13 +520,15 @@ def compatibility_rate(freq_score, title_score, soc_score):
         soc_score   * WEIGHT_SOCIAL
     )
 
-# ─── OUTREACH ENTRY CREATION ──────────────────────────────────────────────────
+# ─── SCREENING ENTRY CREATION ─────────────────────────────────────────────────
 
-def create_outreach_entry(channel_info, channel_id, compat_rate):
-    snippet   = channel_info["snippet"]
-    branding  = channel_info.get("brandingSettings", {})
+def create_screening_entry(channel_info, channel_id, compat_rate):
+    snippet  = channel_info["snippet"]
+    stats    = channel_info.get("statistics", {})
+    branding = channel_info.get("brandingSettings", {})
 
     name       = snippet.get("title", "Unknown")
+    subs       = stats.get("subscriberCount", "0")
     thumb_url  = (
         snippet.get("thumbnails", {}).get("high", {}).get("url") or
         snippet.get("thumbnails", {}).get("default", {}).get("url") or ""
@@ -552,7 +543,8 @@ def create_outreach_entry(channel_info, channel_id, compat_rate):
         "parent": {"database_id": OUTREACH_DB_ID},
         "icon":   {"type": "external", "external": {"url": icon_url}},
         "properties": {
-            "Name":               {"title":  [{"text": {"content": name}}]},
+            "Name":               {"title":     [{"text": {"content": name}}]},
+            "Subscribers":        {"rich_text": [{"text": {"content": subs}}]},
             "Platform Link":      {"url": f"https://www.youtube.com/channel/{channel_id}"},
             "Compatibility Rate": {"number": compat_rate},
             "Source":             {"select": {"name": "YouTube"}},
@@ -593,7 +585,6 @@ def main():
 
         log.info(f"Processing channel: {channel_id}")
 
-        # Fetch channel info
         try:
             ch_info = get_channel_info(yt, channel_id)
         except Exception as e:
@@ -609,7 +600,6 @@ def main():
             log.info(f"  Only {subs} subscribers — skipping")
             continue
 
-        # Fetch recent videos via playlistItems (1 unit/call vs 100 for search)
         try:
             videos = get_recent_videos(yt, channel_id)
         except Exception as e:
@@ -621,12 +611,10 @@ def main():
             if v.get("snippet", {}).get("title")
         ]
 
-        # Upload frequency
         upw     = uploads_per_week(videos)
         f_score = upload_frequency_score(upw)
         log.info(f"  Upload freq: {upw:.2f}/wk → score {f_score}")
 
-        # Title style
         video_id   = video_id_from_url(post_url)
         lead_title = ""
         if video_id:
@@ -637,20 +625,17 @@ def main():
         t_score = title_style_score(lead_title, channel_titles)
         log.info(f"  Title style: {t_score}  (lead title: '{lead_title}')")
 
-        # Social / X scraping
         s_score, s_note = social_score(page)
         log.info(f"  Social score: {s_score}  ({s_note})")
 
-        # Final compatibility rate
         compat = compatibility_rate(f_score, t_score, s_score)
         log.info(f"  → Compatibility Rate: {compat}%")
 
-        # Create new entry in outreach DB (scraper DB untouched)
         try:
-            result = create_outreach_entry(ch_info, channel_id, compat)
-            log.info(f"  Outreach entry created: {result.get('url', result.get('id'))}")
+            result = create_screening_entry(ch_info, channel_id, compat)
+            log.info(f"  Screening entry created: {result.get('url', result.get('id'))}")
         except Exception as e:
-            log.error(f"  Failed to create outreach entry: {e}")
+            log.error(f"  Failed to create screening entry: {e}")
 
         time.sleep(0.5)
 
