@@ -11,7 +11,7 @@ from datetime import datetime
 
 # ── Config ────────────────────────────────────────────────────
 NOTION_KEY  = os.environ.get("NOTION_KEY", "")
-DATABASE_ID   = "28d1691964b48065b59ec1f0b293f91f"
+SCREENING_DB_ID   = os.environ.get("SCREENING_DB_ID", "")
 YTDLP         = "/Library/Frameworks/Python.framework/Versions/3.13/bin/yt-dlp"
 SAMPLE_VIDEOS = 15   # videos used for engagement / frequency stats
 
@@ -201,7 +201,7 @@ def compute_stats(meta, videos):
 def get_db_schema():
     """Retrieve actual property names + types from the database."""
     r = requests.get(
-        f"https://api.notion.com/v1/databases/{DATABASE_ID}",
+        f"https://api.notion.com/v1/databases/{SCREENING_DB_ID}",
         headers={
             "Authorization":  f"Bearer {NOTION_KEY}",
             "Notion-Version": "2022-06-28",
@@ -322,7 +322,7 @@ def push_to_notion(name, url, source, schema, stats=None, avatar_url=None, banne
         props[status_col] = {"select": {"name": "Pending"}}
 
     payload = {
-        "parent":     {"database_id": DATABASE_ID},
+        "parent":     {"database_id": SCREENING_DB_ID},
         "properties": props,
     }
 
