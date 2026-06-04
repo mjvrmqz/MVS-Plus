@@ -21,7 +21,7 @@ jobs:
       - run: pip install requests ics
       - name: Run script
         env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_KEY: ${{ secrets.NOTION_KEY }}
         run: python3 "Feeds/Projects Feed/projects_feed_to_ics.py"
       - name: Commit and push
         run: |
