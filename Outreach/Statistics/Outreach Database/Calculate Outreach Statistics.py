@@ -6,8 +6,8 @@ import os
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 NOTION_KEY = os.environ.get("NOTION_KEY", "")
 
-SCREENING_DB_ID  = "28d16919-64b4-8065-b59e-c1f0b293f91f"
-OUTREACH_DB_ID   = "28d16919-64b4-80a8-8260-e3871d01824c"
+SCREENING_DB_ID  = os.environ.get("SCREENING_DB_ID", "")
+OUTREACH_DB_ID   = os.environ.get("OUTREACH_DB_ID", "")
 
 # Funnel breakdown databases (Initiated → Engaged → Pitched → Closed)
 INITIATED_DB_ID  = "35d16919-64b4-8128-afd1-c38f35addd1e"
