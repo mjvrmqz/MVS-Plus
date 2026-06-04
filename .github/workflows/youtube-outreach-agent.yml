@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install google-api-python-client rapidfuzz requests playwright googleapis-common-protos
+          pip install google-api-python-client rapidfuzz requests playwright googleapis-common-protos yt-dlp
           playwright install chromium
 
       - name: Run YouTube Scraper (5 min limit)
@@ -33,6 +33,8 @@ jobs:
           YT_API_KEY_3: ${{ secrets.YT_API_KEY_3 }}
           NOTION_KEY:   ${{ secrets.NOTION_KEY }}
           GH_PAT:       ${{ secrets.GH_PAT }}
+          SOURCE_DB_ID:  ${{ secrets.SOURCE_DB_ID }}
+          OUTREACH_DB_ID: ${{ secrets.OUTREACH_DB_ID }}
         run: |
           timeout 300 python "Outreach/Scrapers/YouTube/YouTube Scraper.py" || true
 
@@ -42,5 +44,7 @@ jobs:
           YT_API_KEY_2: ${{ secrets.YT_API_KEY_2 }}
           YT_API_KEY_3: ${{ secrets.YT_API_KEY_3 }}
           NOTION_KEY:   ${{ secrets.NOTION_KEY }}
+          SOURCE_DB_ID:  ${{ secrets.SOURCE_DB_ID }}
+          OUTREACH_DB_ID: ${{ secrets.OUTREACH_DB_ID }}
         run: |
           python "Outreach/Screening/YouTube/YouTube Screener.py"
