@@ -49,8 +49,8 @@ YT_API_KEYS = [
     os.environ["YT_API_KEY_3"],
 ]
 
-SOURCE_DB_ID   = "3721691964b4803dbe5fe3b7bebea1d2"   # Scraper DB (read-only)
-OUTREACH_DB_ID = "28d1691964b48065b59ec1f0b293f91f"  # Outreach DB (write)
+SOURCE_DB_ID   = os.environ["SOURCE_DB_ID"]   # Scraper DB (read-only)
+OUTREACH_DB_ID = os.environ["OUTREACH_DB_ID"]  # Outreach DB (write)
 
 NOTION_VERSION = "2022-06-28"
 NOTION_BASE    = "https://api.notion.com/v1"
