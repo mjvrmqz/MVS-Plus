@@ -6,7 +6,7 @@ from ics import Calendar, Event
 
 # === CONFIG ===
 NOTION_KEY = os.environ.get("NOTION_KEY", "")
-DATABASE_ID  = "27d1691964b480639559d787b664900a"
+PROJECTS_DB_ID  = os.environ.get("PROJECTS_DB_ID", "")
 
 if not NOTION_KEY:
     raise RuntimeError("NOTION_KEY environment variable not set.")
@@ -20,7 +20,7 @@ HEADERS = {
 DATE_PROPERTIES = ["Due Date"]
 
 def query_database(database_id):
-    url = f"https://api.notion.com/v1/databases/{database_id}/query"
+    url = f"https://api.notion.com/v1/databases/{PROJECTS_DB_ID}/query"
     results = []
     payload = {}
     while True:
@@ -77,7 +77,7 @@ def create_ics(entries):
 
 def main():
     print("Querying Projects database...")
-    entries = query_database(DATABASE_ID)
+    entries = query_database(PROJECTS_DB_ID)
     print(f"  {len(entries)} entries found")
     create_ics(entries)
     now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
