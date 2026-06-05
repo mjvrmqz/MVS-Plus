@@ -1,0 +1,29 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//MVS Studios//Agents Feed//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:MVS Studios — Agents
+X-WR-TIMEZONE:UTC
+BEGIN:VEVENT
+DTSTART:20260605T000000Z
+DTEND:20260605T000200Z
+RRULE:FREQ=HOURLY;INTERVAL=4
+SUMMARY:⚙️ Update Outreach Feed
+DESCRIPTION:Pulls outreach data from Notion and regenerates Outreach Feed.ics.\n\nSchedule: Every 4 hours
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260605T000000Z
+DTEND:20260605T000200Z
+RRULE:FREQ=HOURLY;INTERVAL=4
+SUMMARY:⚙️ Update Projects Feed
+DESCRIPTION:Pulls project data from Notion and regenerates Projects Feed.ics.\n\nSchedule: Every 4 hours
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20260607T090000Z
+DTEND:20260607T120000Z
+RRULE:FREQ=WEEKLY;BYDAY=SA
+SUMMARY:⚙️ YouTube Outreach Agent
+DESCRIPTION:Runs the YouTube Scraper (5 min cap) then the YouTube Screener. Scrapes leads and scores channels for outreach compatibility.\n\nSchedule: Every Saturday at 9:00 AM UTC
+END:VEVENT
+END:VCALENDAR
