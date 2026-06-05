@@ -4,7 +4,8 @@ YouTube Screener.py
 Reads "Leads" from the YouTube Scraper Notion database, scores each channel
 for outreach compatibility, then creates NEW entries in the Screening database.
 
-The source (scraper) database is NEVER modified — leads remain exactly as-is.
+After a successful screening entry is created, the lead's Select property
+is updated to "Finished" so it is skipped on the next run.
 """
 
 # ─── SCORING CONSTANTS ────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ YT_API_KEYS = [
     os.environ["YT_API_KEY_3"],
 ]
 
-SOURCE_DB_ID   = os.environ["SOURCE_DB_ID"]    # Scraper DB (read-only)
+SOURCE_DB_ID   = os.environ["SOURCE_DB_ID"]    # Scraper DB (read-only except Select)
 SCREENING_DB_ID = os.environ["SCREENING_DB_ID"] # Screening DB (write)
 
 NOTION_VERSION = "2022-06-28"
@@ -110,6 +111,11 @@ def notion_post(path, body):
     resp.raise_for_status()
     return resp.json()
 
+def notion_patch(path, body):
+    resp = requests.patch(f"{NOTION_BASE}{path}", headers=notion_headers(), json=body)
+    resp.raise_for_status()
+    return resp.json()
+
 def query_database(db_id, filter_body=None):
     pages, payload = [], {}
     if filter_body:
@@ -123,6 +129,14 @@ def query_database(db_id, filter_body=None):
         has_more = data.get("has_more", False)
         cursor   = data.get("next_cursor")
     return pages
+
+def mark_lead_finished(page_id):
+    """Updates the Select property of a source DB page to 'Finished'."""
+    notion_patch(f"/pages/{page_id}", {
+        "properties": {
+            "Select": {"select": {"name": "Finished"}}
+        }
+    })
 
 # ─── PROPERTY EXTRACTORS ──────────────────────────────────────────────────────
 
@@ -569,7 +583,7 @@ def main():
     log.info("Starting YouTube Screener")
     yt = YouTubeClient(YT_API_KEYS)
 
-    log.info("Fetching Leads from Notion scraper database (read-only)...")
+    log.info("Fetching Leads from Notion scraper database...")
     all_pages = query_database(SOURCE_DB_ID)
     leads     = [p for p in all_pages if select_val(p, "Select") == "Leads"]
     log.info(f"Found {len(leads)} Lead(s) to process")
@@ -636,6 +650,15 @@ def main():
             log.info(f"  Screening entry created: {result.get('url', result.get('id'))}")
         except Exception as e:
             log.error(f"  Failed to create screening entry: {e}")
+            time.sleep(0.5)
+            continue
+
+        # ── Mark lead as Finished so it's skipped on the next run ──
+        try:
+            mark_lead_finished(page_id)
+            log.info(f"  Marked lead {page_id} as Finished")
+        except Exception as e:
+            log.error(f"  Failed to mark lead as Finished: {e}")
 
         time.sleep(0.5)
 
