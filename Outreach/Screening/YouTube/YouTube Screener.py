@@ -6,6 +6,10 @@ for outreach compatibility, then creates NEW entries in the Screening database.
 
 After a successful screening entry is created, the lead's Select property
 is updated to "Finished" so it is skipped on the next run.
+
+Title style scoring uses Claude AI to compare a channel's video titles against
+the reference titles in Search Titles.txt, judging format and tone — not
+surface-level features like emoji presence.
 """
 
 # ─── SCORING CONSTANTS ────────────────────────────────────────────────────────
@@ -23,11 +27,15 @@ VIDEO_SAMPLE_SIZE   = 50     # how many recent videos to analyse
 MIN_SUBSCRIBERS     = 10_000
 X_FOLLOWER_SAMPLE   = 300    # how many X followers to sample (name-only check)
 
+TITLE_SAMPLE_SIZE   = 20     # how many channel titles to send to Claude for scoring
+
 X_COOKIES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/X/x_cookies.json"
+SEARCH_TITLES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/YouTube/Search%20Titles.txt"
 
 # ─── IMPORTS ──────────────────────────────────────────────────────────────────
 
 import asyncio
+import json
 import os
 import re
 import time
@@ -42,6 +50,7 @@ from playwright.async_api import async_playwright, TimeoutError as PlaywrightTim
 # ─── ENVIRONMENT / CREDENTIALS ────────────────────────────────────────────────
 
 NOTION_KEY    = os.environ["NOTION_KEY"]
+ANTHROPIC_KEY = os.environ["ANTHROPIC_KEY"]
 
 # YouTube API keys with automatic fallback
 YT_API_KEYS = [
@@ -286,52 +295,76 @@ def upload_frequency_score(upw):
     ratio = (upw - FREQ_TOO_LOW) / (FREQ_IDEAL_MIN - FREQ_TOO_LOW)
     return round(30 + ratio * 70)
 
-# ─── TITLE STYLE SCORE (0–100) ────────────────────────────────────────────────
+# ─── SEARCH TITLES LOADER ─────────────────────────────────────────────────────
 
-def _title_features(title):
-    t     = title.strip()
-    words = t.split()
-    first = words[0].lower() if words else ""
-    caps  = sum(1 for w in words if w.isupper() and len(w) > 1)
-    tc    = sum(1 for w in words if w and w[0].isupper())
-    return {
-        "len_short":      int(len(words) <= 4),
-        "len_medium":     int(5 <= len(words) <= 8),
-        "len_long":       int(len(words) > 8),
-        "has_caps":       int(caps > 0),
-        "has_ellipsis":   int("…" in t or "..." in t),
-        "is_question":    int("?" in t),
-        "starts_how_why": int(first in ("how", "why", "when", "what", "where")),
-        "personal_i":     int(t.startswith("I ") or t.startswith("I'")),
-        "title_case":     int(tc / max(len(words), 1) > 0.6),
-        "has_emoji":      int(bool(re.search(r"[\U00010000-\U0010ffff]", t))),
-        "clickbait":      int(bool(re.search(
-            r"(insane|crazy|unbelievable|shocking|gone wrong|epic|exposed)", t, re.I))),
-        "narrative":      int(bool(re.search(
-            r"\b(became|fell|lost|found|died|rose|built|destroyed|saved|changed|ruined)\b",
-            t, re.I))),
-    }
+def load_search_titles():
+    """Fetches Search Titles.txt from GitHub and returns a list of title strings."""
+    log.info("Fetching Search Titles.txt from GitHub...")
+    resp = requests.get(SEARCH_TITLES_URL, timeout=10)
+    resp.raise_for_status()
+    titles = [line.strip() for line in resp.text.splitlines() if line.strip()]
+    log.info(f"Loaded {len(titles)} reference titles")
+    return titles
 
-def _feature_similarity(f1, f2):
-    keys = set(f1) | set(f2)
-    matches = sum(1 for k in keys if f1.get(k, 0) == f2.get(k, 0))
-    return matches / len(keys) if keys else 0
+# ─── TITLE STYLE SCORE (0–100) via Claude AI ──────────────────────────────────
 
-def title_style_score(lead_title, channel_titles):
-    if not lead_title or not channel_titles:
-        return 50
-    lead_feats = _title_features(lead_title)
-    chan_feats  = [_title_features(t) for t in channel_titles if t]
-    if not chan_feats:
-        return 50
-    avg_sim = sum(_feature_similarity(lead_feats, cf) for cf in chan_feats) / len(chan_feats)
-    if avg_sim >= 0.65:
-        score = 70 + (avg_sim - 0.65) / 0.35 * 30
-    elif avg_sim >= 0.45:
-        score = 40 + (avg_sim - 0.45) / 0.20 * 30
-    else:
-        score = avg_sim / 0.45 * 40
-    return round(min(100, max(0, score)))
+def title_style_score(channel_titles, reference_titles):
+    """
+    Uses Claude to score how closely a channel's title format and tone match
+    the reference titles in Search Titles.txt.
+
+    Returns (score: int, reason: str).
+    """
+    if not channel_titles:
+        return 50, "No channel titles available — title score neutral"
+    if not reference_titles:
+        return 50, "No reference titles loaded — title score neutral"
+
+    sample = channel_titles[:TITLE_SAMPLE_SIZE]
+
+    prompt = f"""You are evaluating whether a YouTube channel's content style is a good match for a video editing agency that specialises in drama/commentary-style content.
+
+Here are example titles that represent the IDEAL style we are looking for:
+{chr(10).join(f"- {t}" for t in reference_titles)}
+
+Here are the channel's recent video titles:
+{chr(10).join(f"- {t}" for t in sample)}
+
+Analyse how closely the channel's titles match the FORMAT and TONE of the reference titles. Focus on things like:
+- Narrative structure (e.g. "The Downfall of X", "How X Did Y", "Why Everyone Hates X")
+- Dramatic or story-driven framing
+- Subject-driven commentary style
+- Sentence patterns and phrasing energy
+
+Do NOT penalise or reward based on surface-level things like emoji use, punctuation marks, or title length.
+
+Respond with ONLY a JSON object in this exact format, no other text:
+{{"score": <integer 0-100>, "reason": "<one sentence explaining the score>"}}"""
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key":         ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type":      "application/json",
+            },
+            json={
+                "model":      "claude-haiku-4-5-20251001",
+                "max_tokens": 150,
+                "messages":   [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["content"][0]["text"].strip()
+        parsed = json.loads(raw)
+        score  = max(0, min(100, int(parsed["score"])))
+        reason = parsed.get("reason", "")
+        return score, reason
+    except Exception as e:
+        log.warning(f"  Claude title scoring failed ({e}) — defaulting to 50")
+        return 50, "Claude scoring unavailable — title score neutral"
 
 # ─── X / TWITTER SCRAPING ─────────────────────────────────────────────────────
 
@@ -583,6 +616,13 @@ def main():
     log.info("Starting YouTube Screener")
     yt = YouTubeClient(YT_API_KEYS)
 
+    # Load reference titles once at startup
+    try:
+        reference_titles = load_search_titles()
+    except Exception as e:
+        log.error(f"Failed to load Search Titles.txt: {e} — title scoring will be neutral")
+        reference_titles = []
+
     log.info("Fetching Leads from Notion scraper database...")
     all_pages = query_database(SOURCE_DB_ID)
     leads     = [p for p in all_pages if select_val(p, "Select") == "Leads"]
@@ -590,7 +630,6 @@ def main():
 
     for page in leads:
         channel_id = text_val(page, "ChannelID")
-        post_url   = url_val(page, "Post")
         page_id    = page["id"]
 
         if not channel_id:
@@ -629,15 +668,8 @@ def main():
         f_score = upload_frequency_score(upw)
         log.info(f"  Upload freq: {upw:.2f}/wk → score {f_score}")
 
-        video_id   = video_id_from_url(post_url)
-        lead_title = ""
-        if video_id:
-            try:
-                lead_title = get_video_title(yt, video_id)
-            except Exception:
-                pass
-        t_score = title_style_score(lead_title, channel_titles)
-        log.info(f"  Title style: {t_score}  (lead title: '{lead_title}')")
+        t_score, t_reason = title_style_score(channel_titles, reference_titles)
+        log.info(f"  Title style: {t_score}  ({t_reason})")
 
         s_score, s_note = social_score(page)
         log.info(f"  Social score: {s_score}  ({s_note})")
