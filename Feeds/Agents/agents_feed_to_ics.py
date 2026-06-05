@@ -66,14 +66,14 @@ def build_calendar():
                 "BEGIN:VEVENT\r\n"
                 f"DTSTART;VALUE=DATE:{agent['anchor']}\r\n"
                 f"RRULE:{agent['rrule']}\r\n"
-                f"SUMMARY:⚙️ {agent['name']}\r\n"
+                f"SUMMARY:{agent['name']}\r\n"
                 f"DESCRIPTION:{description}\r\n"
                 "END:VEVENT\r\n"
             )
             cal._unused.append(vevent)
         else:
             e = Event()
-            e.name        = f"⚙️ {agent['name']}"
+            e.name        = agent['name']
             e.description = description
             e.begin       = agent["anchor"]
             e.duration    = timedelta(minutes=agent["duration_min"])
@@ -104,7 +104,7 @@ def main():
                 "BEGIN:VEVENT\r\n",
                 f"DTSTART;VALUE=DATE:{agent['anchor']}\r\n",
                 f"RRULE:{agent['rrule']}\r\n",
-                f"SUMMARY:⚙️ {agent['name']}\r\n",
+                f"SUMMARY:{agent['name']}\r\n",
                 f"DESCRIPTION:{description}\r\n",
                 "END:VEVENT\r\n",
             ]
@@ -116,7 +116,7 @@ def main():
                 f"DTSTART:{agent['anchor']}\r\n",
                 f"DTEND:{end_str}\r\n",
                 f"RRULE:{agent['rrule']}\r\n",
-                f"SUMMARY:⚙️ {agent['name']}\r\n",
+                f"SUMMARY:{agent['name']}\r\n",
                 f"DESCRIPTION:{description}\r\n",
                 "END:VEVENT\r\n",
             ]
