@@ -2,7 +2,7 @@ name: YouTube Outreach Agent
 
 on:
   schedule:
-    - cron: '0 9 * * 6'   # Every Saturday at 9:00 AM UTC
+    - cron: '0 16 * * 6'   # Every Saturday at 9:00 AM PDT (UTC-7)
   repository_dispatch:
     types: [run-youtube-scraper]
   workflow_dispatch:

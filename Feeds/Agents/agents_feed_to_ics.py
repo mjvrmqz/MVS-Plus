@@ -45,9 +45,9 @@ AGENTS = [
     {
         "name":        "YouTube Outreach Agent",
         "description": "Runs the YouTube Scraper (5 min cap) then the YouTube Screener. Scrapes leads and scores channels for outreach compatibility.",
-        "schedule":    "Every Saturday at 9:00 AM UTC",
+        "schedule":    "Every Saturday at 9:00 AM PDT",
         "all_day":     False,
-        "anchor":      "20260606T090000Z",   # DATE-TIME with specific time — 20260606 = Saturday
+        "anchor":      "20260606T160000Z",   # 9:00 AM PDT = 16:00 UTC; 20260606 = Saturday
         "rrule":       "FREQ=WEEKLY;BYDAY=SA",
         "duration_min": 180,
     },
@@ -62,8 +62,6 @@ def build_calendar():
         description = f"{agent['description']}\n\nSchedule: {agent['schedule']}"
 
         if agent["all_day"]:
-            # All-day event: write raw VEVENT lines directly since ics lib
-            # doesn't natively support DATE-only DTSTART with RRULE cleanly.
             vevent = (
                 "BEGIN:VEVENT\r\n"
                 f"DTSTART;VALUE=DATE:{agent['anchor']}\r\n"
@@ -72,7 +70,7 @@ def build_calendar():
                 f"DESCRIPTION:{description}\r\n"
                 "END:VEVENT\r\n"
             )
-            cal._unused.append(vevent)  # injected as raw block
+            cal._unused.append(vevent)
         else:
             e = Event()
             e.name        = f"⚙️ {agent['name']}"
@@ -89,8 +87,6 @@ def build_calendar():
 def main():
     print("Generating Agents Feed...")
 
-    # Build timed events via ics lib, then manually write the full file
-    # so we can cleanly inject all-day events alongside timed ones.
     lines = [
         "BEGIN:VCALENDAR\r\n",
         "VERSION:2.0\r\n",

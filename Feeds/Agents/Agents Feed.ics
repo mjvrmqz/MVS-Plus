@@ -18,10 +18,10 @@ SUMMARY:⚙️ Update Projects Feed
 DESCRIPTION:Pulls project data from Notion and regenerates Projects Feed.ics.\n\nSchedule: Every 4 hours
 END:VEVENT
 BEGIN:VEVENT
-DTSTART:20260606T090000Z
-DTEND:20260606T120000Z
+DTSTART:20260606T160000Z
+DTEND:20260606T190000Z
 RRULE:FREQ=WEEKLY;BYDAY=SA
 SUMMARY:⚙️ YouTube Outreach Agent
-DESCRIPTION:Runs the YouTube Scraper (5 min cap) then the YouTube Screener. Scrapes leads and scores channels for outreach compatibility.\n\nSchedule: Every Saturday at 9:00 AM UTC
+DESCRIPTION:Runs the YouTube Scraper (5 min cap) then the YouTube Screener. Scrapes leads and scores channels for outreach compatibility.\n\nSchedule: Every Saturday at 9:00 AM PDT
 END:VEVENT
 END:VCALENDAR
