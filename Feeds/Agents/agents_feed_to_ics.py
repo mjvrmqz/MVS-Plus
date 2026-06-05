@@ -47,7 +47,7 @@ AGENTS = [
         "description": "Runs the YouTube Scraper (5 min cap) then the YouTube Screener. Scrapes leads and scores channels for outreach compatibility.",
         "schedule":    "Every Saturday at 9:00 AM UTC",
         "all_day":     False,
-        "anchor":      "20260607T090000Z",   # DATE-TIME with specific time
+        "anchor":      "20260606T090000Z",   # DATE-TIME with specific time — 20260606 = Saturday
         "rrule":       "FREQ=WEEKLY;BYDAY=SA",
         "duration_min": 180,
     },
