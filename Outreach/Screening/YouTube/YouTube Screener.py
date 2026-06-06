@@ -40,6 +40,7 @@ import os
 import re
 import time
 import logging
+import traceback
 from datetime import datetime
 
 import requests
@@ -288,14 +289,18 @@ def load_search_titles():
 def load_phi3():
     """
     Loads Phi-3 Mini tokenizer and model directly.
-    Avoids the pipeline() API which has compatibility issues in transformers 5.x.
+
+    Key compatibility notes for transformers 5.x:
+    - Use `torch_dtype` (not `dtype`) — the kwarg was renamed in transformers 5.x
+    - No `trust_remote_code=True` needed — Phi-3 is natively supported since 4.40
+    - Use `attn_implementation="eager"` to avoid flash-attention on CPU/MPS
     """
     log.info("Loading Phi-3 Mini model...")
-    tokenizer = AutoTokenizer.from_pretrained(PHI3_MODEL, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(PHI3_MODEL)
     model = AutoModelForCausalLM.from_pretrained(
         PHI3_MODEL,
-        dtype=torch.float32,         # CPU-safe
-        trust_remote_code=True,
+        torch_dtype=torch.float32,       # CPU-safe; was `dtype=` in older transformers
+        attn_implementation="eager",     # avoids flash-attention path on CPU/MPS
         low_cpu_mem_usage=True,
     )
     model.eval()
@@ -624,6 +629,7 @@ def main():
             phi3_model, phi3_tokenizer = load_phi3()
         except Exception as e:
             log.error(f"Failed to load Phi-3: {e} — title scoring will be neutral")
+            log.error(traceback.format_exc())
 
     log.info("Fetching Leads from Notion scraper database...")
     all_pages = query_database(SOURCE_DB_ID)
