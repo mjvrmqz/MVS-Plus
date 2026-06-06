@@ -9,36 +9,25 @@ on:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 180
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Cache Phi-3 Mini model
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface/hub
-          key: phi3-mini-4k-instruct
-
-      - name: Install dependencies
+      - name: Install/update Python dependencies
         run: |
-          pip install \
+          source ~/scripts-env/bin/activate
+          pip install -q \
             google-api-python-client \
             requests \
             playwright \
             googleapis-common-protos \
-            yt-dlp \
             rapidfuzz \
             transformers \
-            accelerate
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+            accelerate \
+            torch
           playwright install chromium
 
       # TEMPORARILY DISABLED FOR TESTING — re-enable when not testing Screener in isolation
@@ -52,6 +41,7 @@ jobs:
       #     SOURCE_DB_ID:   ${{ secrets.SOURCE_DB_ID }}
       #     OUTREACH_DB_ID: ${{ secrets.OUTREACH_DB_ID }}
       #   run: |
+      #     source ~/scripts-env/bin/activate
       #     timeout 300 python "Outreach/Scrapers/YouTube/YouTube Scraper.py" || true
 
       - name: Run YouTube Screener (runs to completion)
@@ -63,4 +53,5 @@ jobs:
           SOURCE_DB_ID:    ${{ secrets.SOURCE_DB_ID }}
           SCREENING_DB_ID: ${{ secrets.SCREENING_DB_ID }}
         run: |
+          source ~/scripts-env/bin/activate
           python "Outreach/Screening/YouTube/YouTube Screener.py"
