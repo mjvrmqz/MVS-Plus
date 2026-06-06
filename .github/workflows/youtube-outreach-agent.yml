@@ -19,7 +19,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
 
       - name: Cache Phi-3 Mini model
         uses: actions/cache@v4
@@ -35,9 +35,9 @@ jobs:
             playwright \
             googleapis-common-protos \
             yt-dlp \
-            torch --index-url https://download.pytorch.org/whl/cpu \
             transformers \
             accelerate
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
           playwright install chromium
 
       - name: Run YouTube Scraper (5 min limit)
