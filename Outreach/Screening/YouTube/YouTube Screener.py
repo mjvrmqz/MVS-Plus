@@ -24,6 +24,7 @@ FREQ_TOO_HIGH       = 5.0
 FREQ_TOO_LOW        = 0.25
 
 VIDEO_SAMPLE_SIZE   = 50
+TITLE_SCORE_SAMPLE  = 20   # titles sent to Phi-3; evenly sampled from VIDEO_SAMPLE_SIZE
 MIN_SUBSCRIBERS     = 10_000
 X_FOLLOWER_SAMPLE   = 300
 
@@ -316,10 +317,24 @@ def unload_phi3(model, tokenizer):
         torch.cuda.empty_cache()
     log.info("Phi-3 Mini unloaded.")
 
+def _sample_titles(titles, n=TITLE_SCORE_SAMPLE):
+    """
+    Returns up to n titles sampled evenly across the full list.
+    Evenly spaced so the sample represents the channel's range, not just
+    the most recent videos (which is what front-truncation would give).
+    """
+    if len(titles) <= n:
+        return titles
+    step = len(titles) / n
+    return [titles[int(i * step)] for i in range(n)]
+
 def title_style_score(model, tokenizer, channel_titles, reference_titles):
     """
     Uses Phi-3 Mini to score how well a channel's titles match the tone and
     format of the reference titles in Search Titles.txt.
+
+    Feeds a capped, evenly-sampled set of titles to avoid prompt truncation
+    silently biasing the score toward whichever titles happen to appear first.
 
     Returns (score: int, reason: str).
     """
@@ -328,25 +343,36 @@ def title_style_score(model, tokenizer, channel_titles, reference_titles):
     if not reference_titles:
         return 50, "No reference titles loaded — title score neutral"
 
+    sampled = _sample_titles(channel_titles, TITLE_SCORE_SAMPLE)
+    log.debug(f"  Title sample ({len(sampled)}/{len(channel_titles)}): {sampled}")
+
     prompt = (
         f"<|user|>\n"
         f"You are evaluating whether a YouTube channel is a good fit for a video editing agency "
         f"that works with documentary and commentary-style creators.\n\n"
-        f"The agency is specifically looking for channels with this underlying tone and format:\n"
-        f"- Narrative or investigative framing (e.g. \"The Downfall of X\", \"How X Destroyed Their Career\")\n"
-        f"- Subject-driven, story-arc structure — there is a clear subject and something happens to them\n"
-        f"- Serious, analytical, or dramatic energy — NOT vlog, prank, challenge, or hype content\n"
-        f"- Titles feel like documentary episode titles or long-form essay titles\n\n"
-        f"Reference titles representing the IDEAL tone and format:\n"
+        f"The agency wants channels where MOST videos have a narrative, investigative, or essay-style "
+        f"format. Score strictly — if the majority of titles look like gameshow segments, panel shows, "
+        f"or recurring entertainment formats, the channel does NOT fit regardless of topic.\n\n"
+        f"GOOD fit — titles that look like:\n"
+        f"- Narrative/investigative framing: \"The Downfall of X\", \"How X Destroyed Their Career\"\n"
+        f"- Essay or explainer style: \"Why X Changed Everything\", \"The Truth About X\"\n"
+        f"- Documentary episode structure: a clear subject with something that happened to them\n"
+        f"- Serious, analytical, or dramatic long-form energy\n\n"
+        f"BAD fit — titles that look like:\n"
+        f"- Gameshow/challenge formats: \"Find The X\", \"Catch The Y\", \"Guess The Z\"\n"
+        f"- Panel or reaction show segments: \"Ft. [Celebrity] | [Show Name]\", \"[Person] Reacts To\"\n"
+        f"- Recurring branded entertainment segments: \"| Dilemmas\", \"| Don't Get Catfished\", \"| Random or Related\"\n"
+        f"- Vlog, prank, lifestyle, or hype content\n\n"
+        f"Reference titles representing the IDEAL tone:\n"
         + "\n".join(f"- {t}" for t in reference_titles)
-        + f"\n\nChannel's recent video titles:\n"
-        + "\n".join(f"- {t}" for t in channel_titles)
+        + f"\n\nChannel's recent video titles ({len(sampled)} sampled):\n"
+        + "\n".join(f"- {t}" for t in sampled)
         + f"\n\nScore 0-100 where:\n"
-        f"90-100: Almost every title fits the documentary/commentary tone perfectly\n"
+        f"90-100: Almost every title is documentary/essay/investigative style\n"
         f"70-89: Majority fit, occasional off-tone video\n"
-        f"50-69: Mixed — some commentary but also unrelated content\n"
-        f"30-49: Mostly doesn't fit, maybe a few commentary titles\n"
-        f"0-29: Wrong tone entirely — vlog, prank, gaming, lifestyle, hype\n\n"
+        f"50-69: Mixed — some long-form commentary alongside other formats\n"
+        f"30-49: Mostly entertainment/gameshow format, a few commentary titles\n"
+        f"0-29: Wrong format entirely — gameshow, panel show, vlog, prank, hype\n\n"
         f"Respond with exactly two lines, nothing else:\n"
         f"SCORE: <integer 0-100>\n"
         f"REASON: <one sentence>\n"
