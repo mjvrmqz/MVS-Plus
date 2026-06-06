@@ -7,9 +7,9 @@ for outreach compatibility, then creates NEW entries in the Screening database.
 After a successful screening entry is created, the lead's Select property
 is updated to "Finished" so it is skipped on the next run.
 
-Title style scoring uses Claude AI to compare a channel's video titles against
-the reference titles in Search Titles.txt, judging format and tone — not
-surface-level features like emoji presence.
+Title style scoring uses Phi-3 Mini (local, free) to evaluate tone and format
+against the reference titles in Search Titles.txt. The model is explicitly
+unloaded from memory before Playwright launches to avoid RAM pressure.
 """
 
 # ─── SCORING CONSTANTS ────────────────────────────────────────────────────────
@@ -23,19 +23,19 @@ FREQ_IDEAL_MAX      = 4.0    # ideal uploads/week upper bound
 FREQ_TOO_HIGH       = 5.0    # above this → heavy penalty
 FREQ_TOO_LOW        = 0.25   # below this (≈1/month) → heavy penalty
 
-VIDEO_SAMPLE_SIZE   = 50     # how many recent videos to analyse
+VIDEO_SAMPLE_SIZE   = 50     # how many recent videos to fetch (all if channel has fewer)
 MIN_SUBSCRIBERS     = 10_000
-X_FOLLOWER_SAMPLE   = 300    # how many X followers to sample (name-only check)
+X_FOLLOWER_SAMPLE   = 300
 
-TITLE_SAMPLE_SIZE   = 20     # how many channel titles to send to Claude for scoring
-
-X_COOKIES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/X/x_cookies.json"
+X_COOKIES_URL     = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/X/x_cookies.json"
 SEARCH_TITLES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/YouTube/Search%20Titles.txt"
+
+PHI3_MODEL = "microsoft/Phi-3-mini-4k-instruct"
 
 # ─── IMPORTS ──────────────────────────────────────────────────────────────────
 
 import asyncio
-import json
+import gc
 import os
 import re
 import time
@@ -43,24 +43,24 @@ import logging
 from datetime import datetime
 
 import requests
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
 # ─── ENVIRONMENT / CREDENTIALS ────────────────────────────────────────────────
 
-NOTION_KEY    = os.environ["NOTION_KEY"]
-ANTHROPIC_KEY = os.environ["ANTHROPIC_KEY"]
+NOTION_KEY = os.environ["NOTION_KEY"]
 
-# YouTube API keys with automatic fallback
 YT_API_KEYS = [
     os.environ["YT_API_KEY_1"],
     os.environ["YT_API_KEY_2"],
     os.environ["YT_API_KEY_3"],
 ]
 
-SOURCE_DB_ID   = os.environ["SOURCE_DB_ID"]    # Scraper DB (read-only except Select)
-SCREENING_DB_ID = os.environ["SCREENING_DB_ID"] # Screening DB (write)
+SOURCE_DB_ID    = os.environ["SOURCE_DB_ID"]
+SCREENING_DB_ID = os.environ["SCREENING_DB_ID"]
 
 NOTION_VERSION = "2022-06-28"
 NOTION_BASE    = "https://api.notion.com/v1"
@@ -75,10 +75,6 @@ log = logging.getLogger(__name__)
 # ─── YOUTUBE CLIENT WITH KEY ROTATION ─────────────────────────────────────────
 
 class YouTubeClient:
-    """
-    Wraps the YouTube API and automatically falls back to the next API key
-    if the current one hits a quota error (403 or 429).
-    """
     def __init__(self, keys):
         self.keys      = keys
         self.key_index = 0
@@ -140,7 +136,6 @@ def query_database(db_id, filter_body=None):
     return pages
 
 def mark_lead_finished(page_id):
-    """Updates the Select property of a source DB page to 'Finished'."""
     notion_patch(f"/pages/{page_id}", {
         "properties": {
             "Select": {"select": {"name": "Finished"}}
@@ -211,10 +206,6 @@ def get_channel_info(yt, channel_id):
     return items[0] if items else None
 
 def get_uploads_playlist_id(yt, channel_id):
-    """
-    Gets the uploads playlist ID for a channel.
-    Uses channels().list (1 quota unit) instead of search().list (100 units).
-    """
     resp = yt.execute(
         lambda c: c.channels().list(part="contentDetails", id=channel_id)
     )
@@ -225,17 +216,15 @@ def get_uploads_playlist_id(yt, channel_id):
 
 def get_recent_videos(yt, channel_id, max_results=VIDEO_SAMPLE_SIZE):
     """
-    Fetches recent videos via playlistItems (1 unit/call) instead of
-    search.list (100 units/call) to preserve daily quota.
-    Normalises output to the same shape as search.list so downstream
-    scoring logic (uploads_per_week, title_style_score) is unchanged.
+    Fetches up to max_results recent videos. If the channel has fewer than
+    max_results videos, fetches all of them — no artificial floor.
     """
     playlist_id = get_uploads_playlist_id(yt, channel_id)
     if not playlist_id:
         return []
 
     videos, page_token = [], None
-    while len(videos) < max_results:
+    while True:
         batch = min(50, max_results - len(videos))
         def make_request(c, pt=page_token, b=batch, pl=playlist_id):
             kwargs = dict(part="snippet", playlistId=pl, maxResults=b)
@@ -253,16 +242,10 @@ def get_recent_videos(yt, channel_id, max_results=VIDEO_SAMPLE_SIZE):
                 }
             })
         page_token = resp.get("nextPageToken")
-        if not page_token:
+        # Stop if we hit max_results or there are no more pages
+        if len(videos) >= max_results or not page_token:
             break
     return videos
-
-def get_video_title(yt, video_id):
-    if not video_id:
-        return ""
-    resp  = yt.execute(lambda c: c.videos().list(part="snippet", id=video_id))
-    items = resp.get("items", [])
-    return items[0]["snippet"]["title"] if items else ""
 
 # ─── UPLOAD FREQUENCY SCORE (0–100) ───────────────────────────────────────────
 
@@ -298,7 +281,6 @@ def upload_frequency_score(upw):
 # ─── SEARCH TITLES LOADER ─────────────────────────────────────────────────────
 
 def load_search_titles():
-    """Fetches Search Titles.txt from GitHub and returns a list of title strings."""
     log.info("Fetching Search Titles.txt from GitHub...")
     resp = requests.get(SEARCH_TITLES_URL, timeout=10)
     resp.raise_for_status()
@@ -306,12 +288,46 @@ def load_search_titles():
     log.info(f"Loaded {len(titles)} reference titles")
     return titles
 
-# ─── TITLE STYLE SCORE (0–100) via Claude AI ──────────────────────────────────
+# ─── PHI-3 MINI TITLE SCORING ─────────────────────────────────────────────────
 
-def title_style_score(channel_titles, reference_titles):
+def load_phi3():
+    """Loads Phi-3 Mini into memory. Call once before scoring, unload after."""
+    log.info("Loading Phi-3 Mini model...")
+    tokenizer = AutoTokenizer.from_pretrained(PHI3_MODEL, trust_remote_code=True)
+    model     = AutoModelForCausalLM.from_pretrained(
+        PHI3_MODEL,
+        torch_dtype=torch.float32,   # CPU-safe, no bfloat16
+        trust_remote_code=True,
+        low_cpu_mem_usage=True,
+    )
+    pipe = pipeline(
+        "text-generation",
+        model=model,
+        tokenizer=tokenizer,
+        max_new_tokens=80,
+        do_sample=False,             # deterministic output
+        temperature=1.0,
+    )
+    log.info("Phi-3 Mini loaded.")
+    return pipe, model, tokenizer
+
+def unload_phi3(pipe, model, tokenizer):
+    """Explicitly removes Phi-3 from memory before Playwright launches."""
+    log.info("Unloading Phi-3 Mini to free RAM...")
+    del pipe, model, tokenizer
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    log.info("Phi-3 Mini unloaded.")
+
+def title_style_score(pipe, channel_titles, reference_titles):
     """
-    Uses Claude to score how closely a channel's title format and tone match
-    the reference titles in Search Titles.txt.
+    Uses Phi-3 Mini to score how well a channel's titles match the tone and
+    format of the reference titles in Search Titles.txt.
+
+    Looks for the underlying documentary/commentary feel — narrative framing,
+    subject-driven structure, serious or investigative energy — regardless of
+    topic differences between titles.
 
     Returns (score: int, reason: str).
     """
@@ -320,60 +336,62 @@ def title_style_score(channel_titles, reference_titles):
     if not reference_titles:
         return 50, "No reference titles loaded — title score neutral"
 
-    sample = channel_titles[:TITLE_SAMPLE_SIZE]
+    prompt = f"""<|user|>
+You are evaluating whether a YouTube channel is a good fit for a video editing agency that works with documentary and commentary-style creators.
 
-    prompt = f"""You are evaluating whether a YouTube channel's content style is a good match for a video editing agency that specialises in drama/commentary-style content.
+The agency is specifically looking for channels with this underlying tone and format:
+- Narrative or investigative framing (e.g. "The Downfall of X", "How X Destroyed Their Career", "The Creator Who Exposed a $200k Scam")
+- Subject-driven, story-arc structure — there is a clear subject and something happens to them or around them
+- Serious, analytical, or dramatic energy — NOT vlog, prank, challenge, or hype content
+- Titles feel like they could be documentary episode titles or long-form essay titles
 
-Here are example titles that represent the IDEAL style we are looking for:
+Here are example titles that represent the IDEAL tone and format:
 {chr(10).join(f"- {t}" for t in reference_titles)}
 
-Here are the channel's recent video titles:
-{chr(10).join(f"- {t}" for t in sample)}
+Here are the channel's video titles (up to their last 50 videos):
+{chr(10).join(f"- {t}" for t in channel_titles)}
 
-Analyse how closely the channel's titles match the FORMAT and TONE of the reference titles. Focus on things like:
-- Narrative structure (e.g. "The Downfall of X", "How X Did Y", "Why Everyone Hates X")
-- Dramatic or story-driven framing
-- Subject-driven commentary style
-- Sentence patterns and phrasing energy
+Score how well this channel's tone and format match what the agency is looking for.
+Give a score from 0 to 100 where:
+- 90-100: Almost every title fits the documentary/commentary tone perfectly
+- 70-89: Majority of titles fit, occasional off-tone video
+- 50-69: Mixed — some commentary content but also a lot of unrelated content
+- 30-49: Mostly doesn't fit, maybe a few commentary-style titles
+- 0-29: Completely wrong tone — vlog, prank, gaming, lifestyle, hype content
 
-Do NOT penalise or reward based on surface-level things like emoji use, punctuation marks, or title length.
-
-Respond with ONLY a JSON object in this exact format, no other text:
-{{"score": <integer 0-100>, "reason": "<one sentence explaining the score>"}}"""
+Respond with exactly two lines:
+SCORE: <integer 0-100>
+REASON: <one sentence explaining why>
+<|end|>
+<|assistant|>"""
 
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key":         ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type":      "application/json",
-            },
-            json={
-                "model":      "claude-haiku-4-5-20251001",
-                "max_tokens": 150,
-                "messages":   [{"role": "user", "content": prompt}],
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        raw = resp.json()["content"][0]["text"].strip()
-        parsed = json.loads(raw)
-        score  = max(0, min(100, int(parsed["score"])))
-        reason = parsed.get("reason", "")
+        output = pipe(prompt)[0]["generated_text"]
+        # Extract only the part after the assistant tag
+        response = output.split("<|assistant|>")[-1].strip()
+
+        score  = 50
+        reason = "Could not parse model response"
+
+        for line in response.splitlines():
+            line = line.strip()
+            if line.upper().startswith("SCORE:"):
+                try:
+                    score = max(0, min(100, int(re.search(r"\d+", line).group())))
+                except Exception:
+                    pass
+            elif line.upper().startswith("REASON:"):
+                reason = line.split(":", 1)[-1].strip()
+
         return score, reason
+
     except Exception as e:
-        log.warning(f"  Claude title scoring failed ({e}) — defaulting to 50")
-        return 50, "Claude scoring unavailable — title score neutral"
+        log.warning(f"  Phi-3 title scoring failed ({e}) — defaulting to 50")
+        return 50, "Model scoring unavailable — title score neutral"
 
 # ─── X / TWITTER SCRAPING ─────────────────────────────────────────────────────
 
-# Keywords checked against display name only (no profile page visits)
-EDITOR_NAME_KEYWORDS = [
-    "editor",
-    "video editor",
-    "vfx",
-]
+EDITOR_NAME_KEYWORDS = ["editor", "video editor", "vfx"]
 
 def _name_has_editor_signals(display_name):
     name_lower = display_name.lower()
@@ -407,10 +425,6 @@ def load_x_cookies():
     return cookies
 
 async def _collect_followers_with_names(page, username, max_followers):
-    """
-    Scrolls the followers page and collects (username, display_name) pairs.
-    No individual profile pages are visited — names come from the follower list cells.
-    """
     url = f"https://x.com/{username}/followers"
     log.info(f"  Opening followers page: {url}")
     await page.goto(url, wait_until="domcontentloaded")
@@ -426,7 +440,7 @@ async def _collect_followers_with_names(page, username, max_followers):
         log.warning(f"  Follower cells never loaded for @{username}.")
         return []
 
-    followers    = []   # list of (username, display_name)
+    followers    = []
     seen         = set()
     last_count   = 0
     stale_rounds = 0
@@ -469,11 +483,7 @@ async def _collect_followers_with_names(page, username, max_followers):
     return followers[:max_followers]
 
 async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
-    """
-    Collects up to sample_size followers and checks their display names only
-    for editor-related keywords. No profile page visits.
-    """
-    cookies = load_x_cookies()
+    cookies      = load_x_cookies()
     editor_count = 0
     total_count  = 0
 
@@ -498,9 +508,9 @@ async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
                 pass
 
         page = await context.new_page()
-
         await page.goto("https://x.com/home", wait_until="domcontentloaded")
         await asyncio.sleep(3)
+
         logged_in = await page.query_selector('[data-testid="SideNav_AccountSwitcher_Button"]')
         if not logged_in:
             log.error("X cookies didn't authenticate — please update x_cookies.json in GitHub.")
@@ -508,7 +518,6 @@ async def scrape_x_editor_signals(x_username, sample_size=X_FOLLOWER_SAMPLE):
             return 0, 0
 
         log.info("  X session authenticated.")
-
         followers = await _collect_followers_with_names(page, x_username, sample_size)
         if not followers:
             await browser.close()
@@ -616,17 +625,31 @@ def main():
     log.info("Starting YouTube Screener")
     yt = YouTubeClient(YT_API_KEYS)
 
-    # Load reference titles once at startup
+    # Load reference titles
     try:
         reference_titles = load_search_titles()
     except Exception as e:
         log.error(f"Failed to load Search Titles.txt: {e} — title scoring will be neutral")
         reference_titles = []
 
+    # Load Phi-3 Mini once upfront — will be unloaded before Playwright runs
+    phi3_pipe = phi3_model = phi3_tokenizer = None
+    if reference_titles:
+        try:
+            phi3_pipe, phi3_model, phi3_tokenizer = load_phi3()
+        except Exception as e:
+            log.error(f"Failed to load Phi-3: {e} — title scoring will be neutral")
+
     log.info("Fetching Leads from Notion scraper database...")
     all_pages = query_database(SOURCE_DB_ID)
     leads     = [p for p in all_pages if select_val(p, "Select") == "Leads"]
     log.info(f"Found {len(leads)} Lead(s) to process")
+
+    # ── Phase 1: Score all channels with Phi-3 loaded ─────────────────────────
+    # We do title scoring for all leads first, then unload Phi-3, then do
+    # X scraping (Playwright). This keeps peak RAM usage safe.
+
+    scored_leads = []  # list of (page, ch_info, channel_id, f_score, t_score, t_reason, videos)
 
     for page in leads:
         channel_id = text_val(page, "ChannelID")
@@ -636,7 +659,7 @@ def main():
             log.warning(f"Page {page_id}: no ChannelID, skipping")
             continue
 
-        log.info(f"Processing channel: {channel_id}")
+        log.info(f"Scoring channel: {channel_id}")
 
         try:
             ch_info = get_channel_info(yt, channel_id)
@@ -663,13 +686,28 @@ def main():
             v["snippet"]["title"] for v in videos
             if v.get("snippet", {}).get("title")
         ]
+        log.info(f"  Got {len(channel_titles)} titles to score")
 
         upw     = uploads_per_week(videos)
         f_score = upload_frequency_score(upw)
         log.info(f"  Upload freq: {upw:.2f}/wk → score {f_score}")
 
-        t_score, t_reason = title_style_score(channel_titles, reference_titles)
+        if phi3_pipe and reference_titles:
+            t_score, t_reason = title_style_score(phi3_pipe, channel_titles, reference_titles)
+        else:
+            t_score, t_reason = 50, "Phi-3 unavailable — title score neutral"
         log.info(f"  Title style: {t_score}  ({t_reason})")
+
+        scored_leads.append((page, ch_info, channel_id, f_score, t_score, t_reason, videos))
+
+    # ── Unload Phi-3 before launching Playwright ───────────────────────────────
+    if phi3_pipe is not None:
+        unload_phi3(phi3_pipe, phi3_model, phi3_tokenizer)
+        phi3_pipe = phi3_model = phi3_tokenizer = None
+
+    # ── Phase 2: Social scoring + entry creation ───────────────────────────────
+    for page, ch_info, channel_id, f_score, t_score, t_reason, videos in scored_leads:
+        page_id = page["id"]
 
         s_score, s_note = social_score(page)
         log.info(f"  Social score: {s_score}  ({s_note})")
@@ -685,7 +723,6 @@ def main():
             time.sleep(0.5)
             continue
 
-        # ── Mark lead as Finished so it's skipped on the next run ──
         try:
             mark_lead_finished(page_id)
             log.info(f"  Marked lead {page_id} as Finished")
@@ -695,13 +732,6 @@ def main():
         time.sleep(0.5)
 
     log.info("YouTube Screener complete.")
-
-def video_id_from_url(url):
-    for pat in [r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", r"shorts/([A-Za-z0-9_-]{11})"]:
-        m = re.search(pat, url or "")
-        if m:
-            return m.group(1)
-    return None
 
 if __name__ == "__main__":
     main()
