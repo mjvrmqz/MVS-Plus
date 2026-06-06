@@ -262,6 +262,7 @@ def notion_add_entry(video_id: str, video_title: str, channel_id: str, channel_n
         "Select":    {"select": {"name": select_value}},
         "Name":      {"title": [{"text": {"content": channel_name}}]},
         "ChannelID": {"rich_text": [{"text": {"content": channel_id}}]},
+        "Platform":  {"select": {"name": "YouTube"}},
     }
 
     social_order    = ["Twitter", "Instagram", "TikTok", "Facebook", "LinkedIn"]
