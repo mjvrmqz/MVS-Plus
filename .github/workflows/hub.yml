@@ -1,0 +1,34 @@
+name: MVS Studios Hub
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install flask pillow requests yt-dlp
+      - name: Install ffmpeg
+        run: sudo apt-get install -y ffmpeg
+      - name: Install cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared-linux-amd64
+          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+      - name: Start Hub and print URL
+        env:
+          NOTION_KEY: ${{ secrets.NOTION_KEY }}
+          INSPIRATION_DB_ID: ${{ secrets.INSPIRATION_DB_ID }}
+          CLIPS_DB_ID: ${{ secrets.CLIPS_DB_ID }}
+          LESSONS_DB_ID: ${{ secrets.LESSONS_DB_ID }}
+        run: |
+          python "Breakdowns/Hub.py" &
+          sleep 2
+          cloudflared tunnel --url http://localhost:5000 --no-autoupdate 2>&1 | tee /tmp/cf.log &
+          sleep 5
+          grep -o 'https://[a-zA-Z0-9.-]*trycloudflare\.com' /tmp/cf.log | head -1 | xargs -I{} echo "OPEN THIS IN CHROME: {}"
+          wait
