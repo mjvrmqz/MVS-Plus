@@ -18,6 +18,9 @@ jobs:
           chmod +x cloudflared-linux-amd64
           sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
       - name: Start server and print URL
+        env:
+          NOTION_KEY: ${{ secrets.NOTION_KEY }}
+          INSPIRATION_DB_ID: ${{ secrets.INSPIRATION_DB_ID }}
         run: |
           python "Breakdowns/Upload Frame.py" &
           sleep 2
