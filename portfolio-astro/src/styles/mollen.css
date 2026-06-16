@@ -1,0 +1,15 @@
+@font-face {
+  font-family: 'Mollen';
+  src: url('/assets/fonts/Mollen.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.mollen-text {
+  font-family: 'Mollen', sans-serif;
+  color: #ffffff;
+  font-size: 2rem;
+  line-height: 1.2;
+  text-align: center;
+}

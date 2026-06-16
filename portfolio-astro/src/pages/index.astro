@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Nav from '../components/Nav.astro';
 import Logo from '../components/Logo.astro';
 import HeroSection from '../components/HeroSection.astro';
 import CTAButton from '../components/CTAButton.astro';
@@ -14,30 +15,11 @@ import Footer from '../components/Footer.astro';
   <div class="site-wrapper">
     <div class="site-main">
       <div class="inner">
+        <Nav />
         <Logo />
         <HeroSection />
         <CTAButton />
         <FeaturedSection />
-        <div id="container03" class="container-component instance-3 default full screen">
-          <div class="wrapper"><div class="inner"></div></div>
-        </div>
-        <div id="container08" class="container-component instance-8 default full screen">
-          <div class="wrapper">
-            <div class="inner">
-              <ul id="icons02" class="icons-component instance-2">
-                <li>
-                  <a class="n01" href="#" role="button">
-                    <svg aria-labelledby="icons02-icon-1-title">
-                      <title id="icons02-icon-1-title">Email</title>
-                      <use xlink:href="#icon-c3c8e1063e3b7f84f6b54712741de139"></use>
-                    </svg>
-                    <span class="label">Email</span>
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
         <WorkSection1 />
         <WorkSection2 />
         <WorkSection3 />
