@@ -1,0 +1,48 @@
+.contact {
+  min-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5rem 1.5rem;
+  background: linear-gradient(180deg, #150228 0%, #0d0118 100%);
+  position: relative;
+}
+
+.contact__title {
+  font-size: clamp(2rem, 6vw, 4rem);
+  font-weight: 900;
+  color: var(--text-white);
+  line-height: 1.1;
+  margin-bottom: 2rem;
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.contact__title.visible {
+  animation: fadeUp 0.7s ease forwards;
+}
+
+.contact__cta {
+  display: inline-block;
+  background: var(--accent);
+  color: #000;
+  font-weight: 800;
+  font-size: 1rem;
+  padding: 0.85rem 2.4rem;
+  border-radius: 999px;
+  transition: background 0.25s ease, transform 0.2s ease;
+}
+
+.contact__cta:hover {
+  background: var(--accent-hover);
+  transform: scale(1.04);
+}
+
+.contact__dashed {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}

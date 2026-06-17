@@ -1,0 +1,22 @@
+:root {
+  --bg-deep:    #0d0118;
+  --bg-dark:    #150228;
+  --bg-mid:     #1e0535;
+  --purple-1:   #2d0a4e;
+  --purple-2:   #4a1082;
+  --purple-3:   #6b1faf;
+  --accent:     #ff6b6b;
+  --accent-hover: #aaff00;
+  --text-light: #f5e9c6;
+  --text-white: #ffffff;
+  --text-muted: #b39dcc;
+  --font-main: 'Nunito', sans-serif;
+  --nav-h: 64px;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-deep);
+  color: var(--text-white);
+  overflow-x: hidden;
+}
