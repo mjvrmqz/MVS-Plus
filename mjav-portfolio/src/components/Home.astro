@@ -1,0 +1,97 @@
+---
+// Home.astro
+import HomeSvg from '../assets/svg-segments/home.svg?raw';
+import ScrollReveal from './ScrollReveal.astro';
+---
+
+<section id="home" class="home section-wrap">
+  <div class="svg-bg" set:html={HomeSvg} aria-hidden="true" />
+
+  <div class="content-layer home__content">
+    <ScrollReveal as="div" class="home__dots">
+      <!-- decorative 4-dot accent already drawn by the SVG background;
+           kept as an empty spacer so the text below sits at the right offset -->
+    </ScrollReveal>
+
+    <ScrollReveal as="h1" class="home__hero-text">
+      Hero Text Goes Here
+    </ScrollReveal>
+
+    <a
+      href="https://x.com/mjavfxx"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="cta-button home__cta"
+    >
+      Work With Me
+    </a>
+
+    <div class="home__videos">
+      <div class="video-embed">
+        <iframe
+          src="https://www.youtube.com/embed/LEzIK0WT4Yk"
+          title="Video 1"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy"
+        ></iframe>
+      </div>
+      <div class="video-embed">
+        <iframe
+          src="https://www.youtube.com/embed/Hlg1azra4pU"
+          title="Video 2"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .home {
+    position: relative;
+    min-height: 559px;
+    padding-top: 55px; /* offset for fixed nav */
+  }
+
+  .home__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 4rem 1.5rem 2.5rem;
+  }
+
+  .home__dots {
+    height: 0; /* the dot row is purely decorative SVG art behind this */
+  }
+
+  .home__hero-text {
+    font-size: clamp(2rem, 6vw, 3.4rem);
+    font-weight: 700;
+    line-height: 1.05;
+    color: var(--color-cream);
+    margin-top: 2.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .home__cta {
+    margin-bottom: 3rem;
+  }
+
+  .home__videos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 740px;
+  }
+
+  @media (max-width: 640px) {
+    .home__videos {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
