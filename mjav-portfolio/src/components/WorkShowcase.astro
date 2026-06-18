@@ -1,0 +1,119 @@
+---
+// WorkShowcase.astro
+// Three callouts in a zigzag: video + heading alternate sides.
+// Per the SVG, Avatar 1's video sits on the LEFT with text on the right,
+// Avatar 2's video sits on the RIGHT with text on the left, Avatar 3
+// repeats the Avatar-1 layout (video left, text right).
+import ScrollReveal from './ScrollReveal.astro';
+
+const callouts = [
+  {
+    name: 'Avatar 1',
+    subs: '200k Subscribers',
+    videoId: 'HEa9vzq4g9E',
+    videoSide: 'left' as const,
+  },
+  {
+    name: 'Avatar 2',
+    subs: '200k Subscribers',
+    videoId: '_P64RnHuQEg',
+    videoSide: 'right' as const,
+  },
+  {
+    name: 'Avatar 3',
+    subs: '200k Subscribers',
+    videoId: '-v09L5ENA98',
+    videoSide: 'left' as const,
+  },
+];
+---
+
+<section id="work" class="work-showcase section-wrap">
+  <div class="content-layer work-showcase__list">
+    {callouts.map((callout, i) => (
+      <div class:list={['work-row', `work-row--video-${callout.videoSide}`]}>
+        <div class="work-row__video">
+          <div class="video-embed">
+            <iframe
+              src={`https://www.youtube.com/embed/${callout.videoId}`}
+              title={`Video ${i + 1}`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              loading="lazy"
+            ></iframe>
+          </div>
+        </div>
+
+        <ScrollReveal as="div" class="work-row__callout">
+          <h3 class="work-row__name">{callout.name}</h3>
+          <p class="work-row__subs">{callout.subs}</p>
+        </ScrollReveal>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  .work-showcase {
+    position: relative;
+    min-height: 1013px;
+    background: linear-gradient(180deg, #2a1147 0%, #1d0931 100%);
+    padding: 4rem 1.5rem;
+  }
+
+  .work-showcase__list {
+    display: flex;
+    flex-direction: column;
+    gap: 5rem;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .work-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  /* video on right means callout text comes first in visual order */
+  .work-row--video-right {
+    grid-template-areas: "callout video";
+  }
+  .work-row--video-right .work-row__video { grid-area: video; }
+  .work-row--video-right .work-row__callout { grid-area: callout; }
+
+  .work-row--video-left {
+    grid-template-areas: "video callout";
+  }
+  .work-row--video-left .work-row__video { grid-area: video; }
+  .work-row--video-left .work-row__callout { grid-area: callout; }
+
+  .work-row__callout {
+    text-align: center;
+  }
+
+  .work-row__name {
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.4rem;
+  }
+
+  .work-row__subs {
+    font-size: clamp(1rem, 2.5vw, 1.3rem);
+    font-weight: 700;
+    color: var(--color-cream);
+  }
+
+  @media (max-width: 700px) {
+    .work-row,
+    .work-row--video-right,
+    .work-row--video-left {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "video"
+        "callout";
+    }
+  }
+</style>

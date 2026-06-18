@@ -1,0 +1,124 @@
+---
+// Avatars.astro
+// Carousel of avatars that scrolls continuously leftward, fading out at
+// the edges, then loops. Each avatar also gets the "fade in slowly and
+// move up" treatment on first scroll-into-view (the two animations are
+// independent: fade-in-up plays once, the marquee scroll runs forever).
+import ScrollReveal from './ScrollReveal.astro';
+
+const avatars = [
+  { name: 'Avatar 1', subs: '200k Subscribers' },
+  { name: 'Avatar 2', subs: '200k Subscribers' },
+  { name: 'Avatar 3', subs: '200k Subscribers' },
+];
+
+// Duplicate the list so the marquee can loop seamlessly (track scrolls
+// exactly -50%, then jumps back to 0% which looks identical to the eye).
+const marqueeAvatars = [...avatars, ...avatars];
+---
+
+<section id="avatars" class="avatars section-wrap">
+  <div class="avatars__marquee-mask">
+    <div class="avatars__track">
+      {marqueeAvatars.map((avatar, i) => (
+        <ScrollReveal as="div" class="avatar-card" stagger={(i % 3) as 0 | 1 | 2}>
+          <div class="avatar-card__circle">
+            <span class="avatar-card__play-dot" aria-hidden="true"></span>
+          </div>
+          <p class="avatar-card__name">{avatar.name}</p>
+          <p class="avatar-card__subs">{avatar.subs}</p>
+        </ScrollReveal>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .avatars {
+    position: relative;
+    min-height: 133px;
+    background: linear-gradient(180deg, #3d1a63 0%, #2a1147 100%);
+    padding: 2rem 0;
+    overflow: hidden;
+  }
+
+  .avatars__marquee-mask {
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+  }
+
+  .avatars__track {
+    display: flex;
+    width: max-content;
+    gap: 3rem;
+    animation: marquee-scroll 18s linear infinite;
+  }
+
+  @keyframes marquee-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* Pause on hover so it's easy to read a label if someone wants to */
+  .avatars__track:hover {
+    animation-play-state: paused;
+  }
+
+  .avatar-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 140px;
+    flex-shrink: 0;
+  }
+
+  .avatar-card__circle {
+    position: relative;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: #d9d9d9;
+    margin-bottom: 0.75rem;
+  }
+
+  .avatar-card__play-dot {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #2a1147;
+  }
+
+  .avatar-card__name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .avatar-card__subs {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-cream);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .avatars__track {
+      animation: none;
+    }
+  }
+</style>

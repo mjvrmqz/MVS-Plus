@@ -1,0 +1,19 @@
+---
+// index.astro
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Home from '../components/Home.astro';
+import Avatars from '../components/Avatars.astro';
+import WorkShowcase from '../components/WorkShowcase.astro';
+import Contact from '../components/Contact.astro';
+---
+
+<BaseLayout>
+  <Nav />
+  <main>
+    <Home />
+    <Avatars />
+    <WorkShowcase />
+    <Contact />
+  </main>
+</BaseLayout>
