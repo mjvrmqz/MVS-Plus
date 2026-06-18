@@ -6,8 +6,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "prebuild": "python3 src/assets/svg-segments/generate-svg-segments.py ../../mjavfx.svg src/assets/svg-segments",
-    "predev": "python3 src/assets/svg-segments/generate-svg-segments.py ../../mjavfx.svg src/assets/svg-segments",
+    "prebuild": "python3 src/assets/svg-segments/generate-svg-segments.py ../mjavfx.svg src/assets/svg-segments",
+    "predev": "python3 src/assets/svg-segments/generate-svg-segments.py ../mjavfx.svg src/assets/svg-segments",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
