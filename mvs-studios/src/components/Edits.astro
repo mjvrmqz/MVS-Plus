@@ -1,0 +1,190 @@
+---
+const videos = [
+  { id: 'HEa9vzq4g9E', label: 'Edit 1' },
+  { id: '_P64RnHuQEg', label: 'Edit 2' },
+  { id: '-v09L5ENA98', label: 'Edit 3' },
+];
+
+const headingLines = ['Recent', 'Edits'];
+---
+
+<section id="edits" class="edits">
+  <div class="edits__card">
+    <img
+      class="edits__watermark"
+      src="/images/mjav-watermark.png"
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+    />
+
+    <h2 class="edits__title reveal">
+      {headingLines.map((line) => (
+        <span class="edits__title-line">{line}</span>
+      ))}
+    </h2>
+
+    <div class="edits__list">
+      {videos.map((v, i) => (
+        <div class={`edits__row reveal ${i % 2 === 1 ? 'edits__row--reverse' : ''}`}>
+          <div class="edits__video-frame">
+            <iframe
+              src={`https://www.youtube.com/embed/${v.id}`}
+              title={`${v.label} — featured edit`}
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              loading="lazy"
+            ></iframe>
+          </div>
+          <p class="edits__label">{v.label}</p>
+        </div>
+      ))}
+    </div>
+
+    <a
+      class="edits__cta reveal"
+      href="https://x.com/mjavfxx"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Work With Me
+    </a>
+  </div>
+</section>
+
+<style>
+  .edits {
+    width: 100%;
+    padding: 64px 0 96px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .edits__card {
+    position: relative;
+    width: 100%;
+    max-width: 763px;
+    margin: 0 32px;
+    padding: 48px 32px 56px;
+    border-radius: 24px;
+    background: linear-gradient(180deg, var(--color-purple-500) 0%, var(--color-bg-panel) 100%);
+    box-shadow: 0 4px 50px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    overflow: hidden;
+  }
+
+  .edits__watermark {
+    position: absolute;
+    top: 60%;
+    left: 50%;
+    width: 70%;
+    max-width: 560px;
+    transform: translate(-50%, -50%);
+    opacity: 0.06;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .edits__title {
+    position: relative;
+    z-index: 1;
+    margin: 0;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .edits__title-line {
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 5.5vw, 3.6rem);
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--color-cream);
+  }
+
+  .edits__list {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .edits__row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .edits__row--reverse {
+    flex-direction: row-reverse;
+  }
+
+  .edits__video-frame {
+    position: relative;
+    width: 100%;
+    max-width: 383px;
+    aspect-ratio: 383 / 203;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #000;
+    flex-shrink: 0;
+  }
+
+  .edits__video-frame iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .edits__label {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--color-white);
+    flex: 1;
+    text-align: center;
+  }
+
+  .edits__cta {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px 52px;
+    border-radius: 999px;
+    background-color: var(--color-coral);
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color 0.25s ease, color 0.25s ease, transform 0.15s ease;
+  }
+
+  .edits__cta:hover {
+    background-color: var(--color-lime);
+    color: #0c1a00;
+  }
+
+  .edits__cta:active {
+    transform: scale(0.97);
+  }
+
+  @media (max-width: 640px) {
+    .edits__row,
+    .edits__row--reverse {
+      flex-direction: column;
+    }
+  }
+</style>

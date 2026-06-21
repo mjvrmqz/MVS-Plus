@@ -93,3 +93,31 @@ button {
   font-family: inherit;
   cursor: pointer;
 }
+
+/* =========================================================
+   Scroll reveal — "fade in slowly and move up"
+   Apply `.reveal` to any element. JS (see Layout.astro) adds
+   `.is-visible` when the element enters the viewport.
+   `--reveal-delay` (optional, inline style) staggers groups.
+   ========================================================= */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0s);
+  will-change: opacity, transform;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
