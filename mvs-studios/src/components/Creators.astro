@@ -45,7 +45,6 @@ const creators = [
     gap: 56px;
   }
 
-  /* Two-line heading: line 1 heavier/larger, line 2 lighter/smaller */
   .creators__title {
     font-family: var(--font-display);
     color: #fff;
@@ -81,15 +80,15 @@ const creators = [
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 4px;
   }
 
-  /* Avatar wrapper handles the overflow so badge can hang off the edge */
   .creators__avatar-wrap {
     position: relative;
     width: 200px;
     height: 200px;
     flex-shrink: 0;
+    margin-bottom: 16px;
   }
 
   .creators__avatar {
@@ -99,7 +98,6 @@ const creators = [
     background: #D9D9D9;
   }
 
-  /* Badge hangs off bottom-right edge, half overlapping */
   .creators__avatar-badge {
     position: absolute;
     width: 60px;
@@ -115,7 +113,7 @@ const creators = [
     color: #fff;
     font-size: 1.2rem;
     font-weight: 700;
-    margin: 8px 0 0 0;
+    margin: 0;
     text-align: center;
   }
 
