@@ -67,27 +67,25 @@ const pills = [...Array(pillCount * 2)].map((_, i) => i);
 </section>
 
 <style>
-  /* The hero's height is driven purely by its own content (padding + the
-     grid's tallest column), NOT by `100vh`. This matters for the
-     background: `.hero__bg` is `inset: 0` of `.hero`, so as long as
-     `.hero`'s box is sized by content (not an independent viewport unit),
-     the background and the content are locked to the exact same box and
-     scale together as a single unit at any browser zoom level — just like
-     the flat Home.svg they're built from. Previously `.hero` used
-     `min-height: 100vh`, which is calculated independently of the
-     content's actual height; vh and content-flow height respond to zoom
-     at different rounding points, so the background panel and the text/
-     button next to it could drift out of sync relative to each other.
-     `min-height: 100svh` still guarantees the hero fills the first
-     screenful on load, but because it's a *min*, not a fixed height, the
-     content box (and therefore the background tied to it) is free to grow
-     to whatever size its own content needs — keeping bg and content as
-     one rigid, proportionally-scaling unit. */
+  /* ROOT CAUSE of "background doesn't shrink when zooming out":
+     `.hero` was sized with `min-height: 100vh` / `100svh`. Viewport-height
+     units are recalculated live against the browser's current effective
+     viewport at EVERY zoom level — so as you zoom out, the hero's box kept
+     re-stretching itself back out to fill the (now smaller, but still
+     100%-of-screen) viewport. The background lives inside that box via
+     `inset: 0`, so it kept getting re-stretched along with the box on
+     every zoom step. Meanwhile the heading/button/video are sized in
+     rem/px and the page's own zoom scaling shrinks them correctly — so
+     content visibly shrinks while the vh-driven box (and the background
+     painted into it) snaps back to "fill the screen" every time, fighting
+     the zoom. Fix: give `.hero` a fixed, content-driven height (no vh
+     units at all) so the box — and therefore the background tied to it —
+     scales by the exact same browser zoom transform as everything else,
+     instead of being recalculated against a live viewport size. */
   .hero {
     position: relative;
     width: 100%;
-    min-height: 100svh;
-    padding-top: var(--nav-height);
+    padding: calc(var(--nav-height) + 96px) 0 96px;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -133,7 +131,7 @@ const pills = [...Array(pillCount * 2)].map((_, i) => i);
     width: 100%;
     max-width: 1200px;
     margin: 0 auto;
-    padding: 64px 32px;
+    padding: 0 32px;
     display: grid;
     grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
     gap: 48px;
@@ -296,7 +294,7 @@ const pills = [...Array(pillCount * 2)].map((_, i) => i);
   @media (max-width: 860px) {
     .hero__content {
       grid-template-columns: 1fr;
-      padding: 48px 24px;
+      padding: 0 24px;
     }
 
     .hero__heading {
