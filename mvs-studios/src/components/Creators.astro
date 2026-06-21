@@ -1,0 +1,116 @@
+---
+// Creators.astro
+// Built from Avatars.svg — purple gradient section with three creator cards.
+// Each card: circular avatar placeholder + creator name + subscriber count.
+// Heading row: large display text matching the SVG's white type treatment.
+
+const creators = [
+  { name: 'Creator Name', subscribers: '200k subscribers', username: '@handle' },
+  { name: 'Creator Name', subscribers: '200k subscribers', username: '@handle' },
+  { name: 'Creator Name', subscribers: '200k subscribers', username: '@handle' },
+];
+---
+
+<section id="creators" class="creators">
+  <div class="creators__inner">
+    <div class="creators__heading">
+      <h2 class="creators__title">Creators I've worked with</h2>
+    </div>
+
+    <div class="creators__grid">
+      {creators.map((c) => (
+        <div class="creators__card">
+          <div class="creators__avatar"></div>
+          <p class="creators__name">{c.name}</p>
+          <p class="creators__subs">{c.subscribers}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .creators {
+    width: 100%;
+    background: linear-gradient(180deg, #4F3569 0%, #4A167E 100%);
+    padding: 80px 0 96px;
+  }
+
+  .creators__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 64px;
+  }
+
+  .creators__heading {
+    text-align: center;
+  }
+
+  .creators__title {
+    font-family: var(--font-display);
+    color: #fff;
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 700;
+    line-height: 1.05;
+    margin: 0;
+  }
+
+  .creators__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+  }
+
+  .creators__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .creators__avatar {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: #D9D9D9;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* Small white circle overlay in bottom-right, matching SVG */
+  .creators__avatar::after {
+    content: '';
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #fff;
+    bottom: 4px;
+    right: 4px;
+  }
+
+  .creators__name {
+    font-family: var(--font-display);
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    text-align: center;
+  }
+
+  .creators__subs {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.95rem;
+    margin: 0;
+    text-align: center;
+  }
+
+  @media (max-width: 720px) {
+    .creators__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
