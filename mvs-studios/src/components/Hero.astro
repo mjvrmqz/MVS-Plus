@@ -19,10 +19,9 @@ const pillCount = 6;
 const pills = [...Array(pillCount * 2)].map((_, i) => i);
 
 // Split heading lines into per-character spans for stagger animation.
-// Spaces are rendered as non-breaking so they don't collapse.
 const headingLines = ['Hero Text', 'Goes Here'];
-const charDelay = 0.04; // seconds between each character
-const lineStartDelay = [0.1, 0.5]; // stagger offset per line
+const charDelay = 0.04;
+const lineStartDelay = [0.1, 0.5];
 ---
 
 <section id="home" class="hero">
@@ -82,21 +81,6 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
 </section>
 
 <style>
-  /* ROOT CAUSE of "background doesn't shrink when zooming out":
-     `.hero` was sized with `min-height: 100vh` / `100svh`. Viewport-height
-     units are recalculated live against the browser's current effective
-     viewport at EVERY zoom level — so as you zoom out, the hero's box kept
-     re-stretching itself back out to fill the (now smaller, but still
-     100%-of-screen) viewport. The background lives inside that box via
-     `inset: 0`, so it kept getting re-stretched along with the box on
-     every zoom step. Meanwhile the heading/button/video are sized in
-     rem/px and the page's own zoom scaling shrinks them correctly — so
-     content visibly shrinks while the vh-driven box (and the background
-     painted into it) snaps back to "fill the screen" every time, fighting
-     the zoom. Fix: give `.hero` a fixed, content-driven height (no vh
-     units at all) so the box — and therefore the background tied to it —
-     scales by the exact same browser zoom transform as everything else,
-     instead of being recalculated against a live viewport size. */
   .hero {
     position: relative;
     width: 100%;
@@ -106,7 +90,6 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
     align-items: center;
   }
 
-  /* ---------- Background (paint0 / paint1 from Home.svg) ---------- */
   .hero__bg {
     position: absolute;
     inset: 0;
@@ -124,10 +107,6 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
     );
   }
 
-  /* Angled panel mirrors the path M0 510L320 71H746... shape from Home.svg:
-     a steep diagonal slice that crosses from the bottom-left up to roughly
-     40% across the top edge — much steeper than a generic 0/100 -> 42/0
-     polygon, matching the sharper angle visible in the Figma reference. */
   .hero__bg-panel {
     position: absolute;
     inset: 0;
@@ -136,7 +115,6 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
     opacity: 0.9;
   }
 
-  /* ---------- Content ---------- */
   .hero__content {
     position: relative;
     z-index: 1;
@@ -175,37 +153,27 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
 
   /* ---------- Trusted By ---------- */
   .hero__trusted {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    margin-bottom: 28px !important;
   }
 
   .hero__trusted-label {
-    font-size: 1rem;
-    color: var(--color-white);
-    opacity: 0.85;
-    white-space: nowrap;
-    flex-shrink: 0;
+    font-size: 1rem !important;
+    color: var(--color-white) !important;
+    opacity: 0.85 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
   }
 
-  /* ---------- Avatar pill carousel (infinite marquee) ---------- */
   .hero__trusted-carousel {
     position: relative;
     overflow: hidden;
-    /* Wide enough to show all 6 overlapping pills clearly */
-    width: 160px;
+    width: 160px !important;
     flex-shrink: 0;
-
-    /* Fade-out mask on both edges */
     mask-image: linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%);
-    -webkit-mask-image: linear-gradient(
-      90deg,
-      transparent 0%,
-      black 15%,
-      black 85%,
-      transparent 100%
-    );
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%);
   }
 
   .hero__trusted-track {
@@ -216,55 +184,45 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
   }
 
   .pill {
-    flex: 0 0 auto;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--color-white);
-    opacity: 0.45;
-    border: 2.5px solid var(--color-bg-mid);
-    margin-left: -10px;
+    flex: 0 0 auto !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    background: var(--color-white) !important;
+    opacity: 0.45 !important;
+    border: 2.5px solid var(--color-bg-mid) !important;
+    margin-left: -10px !important;
   }
 
   .pill:first-child {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
 
   @keyframes trustedScroll {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(-50%);
-    }
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .hero__trusted-track {
-      animation: none;
-    }
+    .hero__trusted-track { animation: none; }
   }
 
-  /* ---------- Hero heading: per-character fade-up on load ---------- */
+  /* ---------- Hero heading ---------- */
   .hero__heading {
-    font-family: var(--font-display);
-    color: var(--color-cream);
-    /* Larger to match Figma's dominant heading proportions */
-    font-size: 4rem;
-    /* Tight line-height: Figma shows lines nearly touching */
-    line-height: 1.05;
-    font-weight: 700;
-    margin: 0 0 28px 0;
-    /* Remove block-level opacity — individual chars handle their own */
+    font-family: var(--font-display) !important;
+    color: var(--color-cream) !important;
+    font-size: 4rem !important;
+    line-height: 1.05 !important;
+    font-weight: 700 !important;
+    margin: 0 0 32px 0 !important;
   }
 
   .hero__heading-line {
-    display: block;
+    display: block !important;
   }
 
-  /* Each character starts invisible + shifted down, then animates in */
   .hero__char {
-    display: inline-block;
+    display: inline-block !important;
     opacity: 0;
     transform: translateY(28px);
     animation: charFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -279,40 +237,37 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
 
   @media (prefers-reduced-motion: reduce) {
     .hero__char {
-      animation: none;
-      opacity: 1;
-      transform: none;
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
     }
   }
 
   /* ---------- CTA button ---------- */
-  /* Figma shows a noticeably wide, tall pill — significantly larger than
-     the previous 12px/24px padding. Matching proportions from Figma:
-     tall enough that the button height feels substantial next to the
-     heading, and wide enough that it doesn't look like a chip. */
   .hero__cta {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    align-self: flex-start;
-    padding: 18px 52px;
-    border-radius: 999px;
-    background-color: var(--color-coral);
-    color: var(--color-white);
-    font-weight: 700;
-    font-size: 1.1rem;
-    white-space: nowrap;
-    transition: background-color 0.25s ease, transform 0.15s ease;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: flex-start !important;
+    padding: 18px 52px !important;
+    border-radius: 999px !important;
+    background-color: var(--color-coral) !important;
+    color: var(--color-white) !important;
+    font-weight: 700 !important;
+    font-size: 1.1rem !important;
+    white-space: nowrap !important;
+    transition: background-color 0.25s ease, transform 0.15s ease !important;
+    text-decoration: none !important;
   }
 
   .hero__cta:hover,
   .hero__cta:focus-visible {
-    background-color: var(--color-lime);
-    color: #0c1a00;
+    background-color: var(--color-lime) !important;
+    color: #0c1a00 !important;
   }
 
   .hero__cta:active {
-    transform: scale(0.97);
+    transform: scale(0.97) !important;
   }
 
   @media (max-width: 860px) {
@@ -320,9 +275,8 @@ const lineStartDelay = [0.1, 0.5]; // stagger offset per line
       grid-template-columns: 1fr;
       padding: 0 24px;
     }
-
     .hero__heading {
-      font-size: clamp(2rem, 8vw, 2.75rem);
+      font-size: clamp(2rem, 8vw, 2.75rem) !important;
     }
   }
 </style>
