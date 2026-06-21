@@ -1,0 +1,122 @@
+---
+// AvatarCarousel.astro
+// A continuously-scrolling row of avatars/creators that loops infinitely
+// and fades out at the left/right edges (classic logo/avatar marquee).
+//
+// Approach: duplicate the avatar list once and translate the whole strip
+// from 0% to -50% on a linear infinite loop — because the strip is two
+// copies back to back, the loop point is seamless.
+
+interface Avatar {
+  name: string;
+  src: string;
+}
+
+// Placeholder roster — swap `src` for real creator avatars when available.
+const avatars: Avatar[] = [
+  { name: 'Creator 1', src: '/images/avatar-01.png' },
+  { name: 'Creator 2', src: '/images/avatar-01.png' },
+  { name: 'Creator 3', src: '/images/avatar-01.png' },
+  { name: 'Creator 4', src: '/images/avatar-01.png' },
+  { name: 'Creator 5', src: '/images/avatar-01.png' },
+  { name: 'Creator 6', src: '/images/avatar-01.png' },
+];
+
+const track = [...avatars, ...avatars];
+---
+
+<section id="avatars" class="carousel">
+  <h2 class="carousel__heading">Creators</h2>
+
+  <div class="carousel__viewport">
+    <ul class="carousel__track">
+      {
+        track.map((avatar) => (
+          <li class="carousel__item">
+            <img src={avatar.src} alt={avatar.name} loading="lazy" />
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .carousel {
+    position: relative;
+    width: 100%;
+    padding: 72px 0;
+    background: var(--color-purple-700);
+    overflow: hidden;
+  }
+
+  .carousel__heading {
+    font-family: var(--font-display);
+    text-align: center;
+    color: var(--color-cream);
+    font-size: clamp(1.6rem, 3vw, 2.25rem);
+    margin: 0 0 40px;
+  }
+
+  .carousel__viewport {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+
+    /* Fade-out mask on both edges */
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+  }
+
+  .carousel__track {
+    display: flex;
+    align-items: center;
+    gap: 48px;
+    width: max-content;
+    animation: carouselScroll 28s linear infinite;
+  }
+
+  .carousel__item {
+    flex: 0 0 auto;
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--color-purple-600);
+  }
+
+  .carousel__item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @keyframes carouselScroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      /* Track is two copies of the roster placed end to end, so
+         shifting exactly one half-width loops seamlessly. */
+      transform: translateX(-50%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .carousel__track {
+      animation: none;
+    }
+  }
+</style>

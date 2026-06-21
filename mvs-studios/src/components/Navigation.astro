@@ -1,0 +1,93 @@
+---
+// Navigation.astro
+// Source: Navigation.svg — text-only nav (Home / Creators / Work / Contact)
+// on a translucent dark-purple bar (#1D0931 @ 40% opacity).
+//
+// Behavior per spec:
+// - Fixed to the top, stays put on scroll
+// - Background is blurred (glassmorphism) rather than fully opaque
+// - Home   -> #home section
+// - Creators -> #avatars section
+// - Work   -> first work video, #work section
+// - Contact -> #contact section
+
+const links = [
+  { label: 'Home', href: '#home' },
+  { label: 'Creators', href: '#avatars' },
+  { label: 'Work', href: '#work' },
+  { label: 'Contact', href: '#contact' },
+];
+---
+
+<header class="nav">
+  <nav class="nav__inner">
+    <ul class="nav__links">
+      {
+        links.map((link) => (
+          <li>
+            <a href={link.href} class="nav__link">
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+</header>
+
+<style>
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--nav-height);
+    z-index: 100;
+
+    /* Translucent dark-purple bar, matching Navigation.svg's
+       rect fill="#1D0931" fill-opacity="0.4" */
+    background-color: var(--nav-bg);
+
+    /* The "blurry" requirement: blur whatever sits behind the bar */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .nav__inner {
+    height: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nav__links {
+    display: flex;
+    align-items: center;
+    gap: clamp(24px, 5vw, 64px);
+  }
+
+  .nav__link {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--color-white);
+    letter-spacing: 0.01em;
+    transition: opacity 0.2s ease;
+  }
+
+  .nav__link:hover {
+    opacity: 0.7;
+  }
+
+  @media (max-width: 600px) {
+    .nav__links {
+      gap: 18px;
+    }
+    .nav__link {
+      font-size: 0.85rem;
+    }
+  }
+</style>

@@ -1,0 +1,234 @@
+---
+// Hero.astro
+// Source: Home.svg (top ~531px of the 765x747 viewBox — the rest of the
+// viewBox is transparent dead space and is not represented here).
+//
+// Layout mirrors the SVG:
+//  - left: black video frame (Video 1 embed)
+//  - right: "Trusted By" + avatar pill row, hero heading, CTA button
+//
+// Background: linear gradient (#180828 -> #4A167F -> #4F316D) plus an
+// angled overlay panel (#1B092D -> #50326E), matching paint0/paint1 in the SVG.
+
+const YT_VIDEO_1 = 'LEzIK0WT4Yk';
+---
+
+<section id="home" class="hero">
+  <div class="hero__bg" aria-hidden="true">
+    <div class="hero__bg-gradient"></div>
+    <div class="hero__bg-panel"></div>
+  </div>
+
+  <div class="hero__content">
+    <div class="hero__video">
+      <div class="hero__video-frame">
+        <iframe
+          src={`https://www.youtube.com/embed/${YT_VIDEO_1}`}
+          title="Featured work — Video 1"
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen
+          loading="lazy"
+        ></iframe>
+      </div>
+    </div>
+
+    <div class="hero__copy">
+      <div class="hero__trusted">
+        <span class="hero__trusted-label">Trusted By</span>
+        <div class="hero__trusted-pills" aria-hidden="true">
+          <span class="pill"></span>
+          <span class="pill"></span>
+          <span class="pill"></span>
+          <span class="pill"></span>
+          <span class="pill"></span>
+        </div>
+      </div>
+
+      <h1 class="hero__heading">
+        <span class="hero__heading-line">Hero Text</span>
+        <span class="hero__heading-line">Goes Here</span>
+      </h1>
+
+      <a
+        class="hero__cta"
+        href="https://x.com/mjavfxx"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Work With Me
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    width: 100%;
+    min-height: 100vh;
+    padding-top: var(--nav-height);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+  }
+
+  /* ---------- Background (paint0 / paint1 from Home.svg) ---------- */
+  .hero__bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .hero__bg-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      165deg,
+      var(--color-bg-deep) 0%,
+      var(--color-bg-mid) 54%,
+      var(--color-bg-soft) 74%
+    );
+  }
+
+  /* Angled panel mirrors the path M0 510L320 71H746...  shape:
+     a diagonal slice across the top-right of the hero. */
+  .hero__bg-panel {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, var(--color-bg-panel) 0%, var(--color-bg-panel-2) 100%);
+    clip-path: polygon(0% 100%, 42% 0%, 100% 0%, 100% 100%);
+    opacity: 0.9;
+  }
+
+  /* ---------- Content ---------- */
+  .hero__content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 64px 32px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 48px;
+    align-items: center;
+  }
+
+  .hero__video-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 372 / 213;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .hero__video-frame iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero__copy {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .hero__trusted {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .hero__trusted-label {
+    font-size: 0.95rem;
+    color: var(--color-white);
+    opacity: 0.85;
+  }
+
+  .hero__trusted-pills {
+    display: flex;
+  }
+
+  .pill {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-white);
+    opacity: 0.5;
+    border: 2px solid var(--color-bg-mid);
+    margin-left: -10px;
+  }
+
+  .pill:first-child {
+    margin-left: 0;
+  }
+
+  /* ---------- Hero heading: fade in + move up on load ---------- */
+  .hero__heading {
+    font-family: var(--font-display);
+    color: var(--color-cream);
+    font-size: clamp(2.25rem, 5vw, 3.4rem);
+    line-height: 1.05;
+    font-weight: 700;
+    margin: 0;
+
+    opacity: 0;
+    transform: translateY(24px);
+    animation: heroFadeUp 0.9s ease-out 0.15s forwards;
+  }
+
+  .hero__heading-line {
+    display: block;
+  }
+
+  @keyframes heroFadeUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero__heading {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ---------- CTA button ---------- */
+  .hero__cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    padding: 14px 28px;
+    border-radius: 999px;
+    background-color: var(--color-coral);
+    color: var(--color-white);
+    font-weight: 700;
+    font-size: 1rem;
+    transition: background-color 0.25s ease, transform 0.15s ease;
+  }
+
+  .hero__cta:hover,
+  .hero__cta:focus-visible {
+    background-color: var(--color-lime);
+    color: #0c1a00;
+  }
+
+  .hero__cta:active {
+    transform: scale(0.97);
+  }
+
+  @media (max-width: 860px) {
+    .hero__content {
+      grid-template-columns: 1fr;
+      padding: 48px 24px;
+    }
+  }
+</style>

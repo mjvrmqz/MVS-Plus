@@ -1,0 +1,47 @@
+---
+// VideoEmbed.astro
+// Reusable embedded-YouTube block, styled to match the rounded black
+// video frame seen in Home.svg.
+
+interface Props {
+  youtubeId: string;
+  title: string;
+}
+
+const { youtubeId, title } = Astro.props;
+---
+
+<div class="video-embed">
+  <div class="video-embed__frame">
+    <iframe
+      src={`https://www.youtube.com/embed/${youtubeId}`}
+      title={title}
+      frameborder="0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen
+      loading="lazy"
+    ></iframe>
+  </div>
+</div>
+
+<style>
+  .video-embed {
+    width: 100%;
+  }
+
+  .video-embed__frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 22px;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .video-embed__frame iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+</style>

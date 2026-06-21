@@ -1,0 +1,29 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'MVS Studios — Video Editing Portfolio',
+  description = "Mjav's Video Editing Portfolio",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <!-- Preload the brand font so the Hero text doesn't flash unstyled -->
+    <link rel="preload" href="/fonts/Mollen.otf" as="font" type="font/otf" crossorigin />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
