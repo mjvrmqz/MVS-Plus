@@ -1,26 +1,25 @@
 ---
-// Creators.astro
-// Built from Avatars.svg — purple gradient section with three creator cards.
-// Each card: circular avatar placeholder + creator name + subscriber count.
-// Heading row: large display text matching the SVG's white type treatment.
-
 const creators = [
-  { name: 'Creator Name', subscribers: '200k subscribers', username: '@handle' },
-  { name: 'Creator Name', subscribers: '200k subscribers', username: '@handle' },
-  { name: 'Creator Name', subscribers: '200k subscribers', username: '@handle' },
+  { name: 'Avatar 2', subscribers: '200k Subscribers' },
+  { name: 'Avatar 2', subscribers: '200k Subscribers' },
+  { name: 'Avatar 3', subscribers: '200k Subscribers' },
 ];
 ---
 
 <section id="creators" class="creators">
   <div class="creators__inner">
-    <div class="creators__heading">
-      <h2 class="creators__title">Creators I've worked with</h2>
-    </div>
+    <h2 class="creators__title">
+      <span class="creators__title-line1">Creators I Have</span>
+      <span class="creators__title-line2">Worked With</span>
+    </h2>
 
     <div class="creators__grid">
       {creators.map((c) => (
         <div class="creators__card">
-          <div class="creators__avatar"></div>
+          <div class="creators__avatar-wrap">
+            <div class="creators__avatar"></div>
+            <div class="creators__avatar-badge"></div>
+          </div>
           <p class="creators__name">{c.name}</p>
           <p class="creators__subs">{c.subscribers}</p>
         </div>
@@ -32,8 +31,8 @@ const creators = [
 <style>
   .creators {
     width: 100%;
-    background: linear-gradient(180deg, #4F3569 0%, #4A167E 100%);
-    padding: 80px 0 96px;
+    background: linear-gradient(160deg, #4F3569 0%, #4A167E 60%, #3a0f6e 100%);
+    padding: 72px 0 88px;
   }
 
   .creators__inner {
@@ -42,68 +41,89 @@ const creators = [
     padding: 0 32px;
     display: flex;
     flex-direction: column;
-    gap: 64px;
+    align-items: center;
+    gap: 56px;
   }
 
-  .creators__heading {
-    text-align: center;
-  }
-
+  /* Two-line heading: line 1 heavier/larger, line 2 lighter/smaller */
   .creators__title {
     font-family: var(--font-display);
     color: #fff;
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
-    font-weight: 700;
-    line-height: 1.05;
     margin: 0;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .creators__title-line1 {
+    font-size: clamp(2.8rem, 6vw, 5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    display: block;
+  }
+
+  .creators__title-line2 {
+    font-size: clamp(2.2rem, 5vw, 4rem);
+    font-weight: 400;
+    line-height: 1.05;
+    display: block;
   }
 
   .creators__grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 40px;
+    gap: 48px 32px;
+    width: 100%;
   }
 
   .creators__card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
   }
 
-  .creators__avatar {
-    width: 160px;
-    height: 160px;
-    border-radius: 50%;
-    background: #D9D9D9;
+  /* Avatar wrapper handles the overflow so badge can hang off the edge */
+  .creators__avatar-wrap {
     position: relative;
+    width: 200px;
+    height: 200px;
     flex-shrink: 0;
   }
 
-  /* Small white circle overlay in bottom-right, matching SVG */
-  .creators__avatar::after {
-    content: '';
+  .creators__avatar {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: #D9D9D9;
+  }
+
+  /* Badge hangs off bottom-right edge, half overlapping */
+  .creators__avatar-badge {
     position: absolute;
-    width: 48px;
-    height: 48px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     background: #fff;
-    bottom: 4px;
-    right: 4px;
+    bottom: -8px;
+    right: -8px;
   }
 
   .creators__name {
     font-family: var(--font-display);
     color: #fff;
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     font-weight: 700;
-    margin: 0;
+    margin: 8px 0 0 0;
     text-align: center;
   }
 
   .creators__subs {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.95rem;
+    font-family: var(--font-display);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
     margin: 0;
     text-align: center;
   }
