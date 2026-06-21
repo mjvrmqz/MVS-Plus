@@ -1,12 +1,4 @@
 ---
-// Navigation.astro
-// Source: Navigation.svg — text-only nav (Home / Creators / Work / Contact)
-// on a translucent dark-purple bar (#1D0931 @ 40% opacity).
-//
-// Behavior per spec: this build only contains Navigation + Home.
-// Work / Creators / Contact have no destinations yet, so each link is a
-// no-op placeholder (href="#") until those sections/pages exist.
-
 const links = ['Home', 'Work', 'Creators', 'Contact'];
 ---
 
@@ -34,12 +26,7 @@ const links = ['Home', 'Work', 'Creators', 'Contact'];
     width: 100%;
     height: var(--nav-height);
     z-index: 100;
-
-    /* Translucent dark-purple bar, matching Navigation.svg's
-       rect fill="#1D0931" fill-opacity="0.4" */
     background-color: var(--nav-bg);
-
-    /* The "blurry" requirement: blur whatever sits behind the bar */
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }

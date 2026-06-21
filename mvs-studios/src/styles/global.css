@@ -6,7 +6,15 @@
 @font-face {
   font-family: 'Mollen';
   src: url('/fonts/Mollen.otf') format('opentype');
-  font-weight: normal;
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mollen';
+  src: url('/fonts/Mollen Regular.otf') format('opentype');
+  font-weight: 100 600;
   font-style: normal;
   font-display: swap;
 }
@@ -29,7 +37,7 @@
   --color-lime: #70FF00;          /* CTA button hover state */
   --color-white: #FFFFFF;
 
-  --nav-bg: rgba(29, 9, 49, 0.4); /* #1D0931 @ 40% — Navigation.svg rect */
+  --nav-bg: rgba(42, 8, 74, 0.75); /* deep purple @ 75% opacity */
 
   --font-display: 'Mollen', 'Sora', system-ui, sans-serif;
   --font-body: 'Sora', system-ui, sans-serif;
@@ -44,10 +52,6 @@
 }
 
 html {
-  /* Explicit 100% baseline — never rely on the browser/inherited default,
-     and never override this with px or a fraction; doing so is what causes
-     the "everything is zoomed out" symptom (all rem-based sizing across
-     the site shrinks/grows together). */
   font-size: 100%;
 }
 
@@ -55,9 +59,6 @@ html,
 body {
   margin: 0;
   padding: 0;
-  /* Guard against any element pushing layout wider than the viewport —
-     horizontal overflow is the other common cause of mobile browsers
-     auto-zooming the whole page out to fit content. */
   overflow-x: hidden;
 }
 
