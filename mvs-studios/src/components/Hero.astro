@@ -67,10 +67,26 @@ const pills = [...Array(pillCount * 2)].map((_, i) => i);
 </section>
 
 <style>
+  /* The hero's height is driven purely by its own content (padding + the
+     grid's tallest column), NOT by `100vh`. This matters for the
+     background: `.hero__bg` is `inset: 0` of `.hero`, so as long as
+     `.hero`'s box is sized by content (not an independent viewport unit),
+     the background and the content are locked to the exact same box and
+     scale together as a single unit at any browser zoom level — just like
+     the flat Home.svg they're built from. Previously `.hero` used
+     `min-height: 100vh`, which is calculated independently of the
+     content's actual height; vh and content-flow height respond to zoom
+     at different rounding points, so the background panel and the text/
+     button next to it could drift out of sync relative to each other.
+     `min-height: 100svh` still guarantees the hero fills the first
+     screenful on load, but because it's a *min*, not a fixed height, the
+     content box (and therefore the background tied to it) is free to grow
+     to whatever size its own content needs — keeping bg and content as
+     one rigid, proportionally-scaling unit. */
   .hero {
     position: relative;
     width: 100%;
-    min-height: 100vh;
+    min-height: 100svh;
     padding-top: var(--nav-height);
     overflow: hidden;
     display: flex;
@@ -110,8 +126,7 @@ const pills = [...Array(pillCount * 2)].map((_, i) => i);
   /* ---------- Content ---------- */
   /* Sizing below is fixed (rem-based) rather than vw/clamp-driven, so the
      hero matches the Figma frame 1:1 at typical desktop widths instead of
-     fluidly stretching/shrinking with viewport width — that fluid scaling
-     was what made bigger screens look "zoomed" relative to the design. */
+     fluidly stretching/shrinking with viewport width. */
   .hero__content {
     position: relative;
     z-index: 1;
