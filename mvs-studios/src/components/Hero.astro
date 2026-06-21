@@ -1,24 +1,9 @@
 ---
-// Hero.astro
-// Source: Home.svg (top ~531px of the 765x747 viewBox — the rest of the
-// viewBox is transparent dead space and is not represented here).
-//
-// Layout mirrors the SVG:
-//  - left: black video frame (Video 1 embed)
-//  - right: "Trusted By" + avatar pill row (which doubles as an infinite
-//    marquee carousel), hero heading, CTA button
-//
-// Background: linear gradient (#180828 -> #4A167F -> #4F316D) plus an
-// angled overlay panel (#1B092D -> #50326E), matching paint0/paint1 in the SVG.
-
 const YT_VIDEO_1 = 'LEzIK0WT4Yk';
 
-// "Trusted By" pills — placeholder count, duplicated once so the marquee
-// loop point (translateX -50%) is seamless.
 const pillCount = 6;
 const pills = [...Array(pillCount * 2)].map((_, i) => i);
 
-// Split heading lines into per-character spans for stagger animation.
 const headingLines = ['Hero Text', 'Goes Here'];
 const charDelay = 0.04;
 const lineStartDelay = [0.1, 0.5];
@@ -45,22 +30,22 @@ const lineStartDelay = [0.1, 0.5];
     </div>
 
     <div class="hero__copy">
-      <div class="hero__trusted">
-        <span class="hero__trusted-label">Trusted By</span>
-        <div class="hero__trusted-carousel" aria-hidden="true">
+      <div class="hero__trusted" style="display:flex;align-items:center;gap:16px;margin-bottom:28px;">
+        <span class="hero__trusted-label" style="font-size:1rem;color:#fff;opacity:0.85;white-space:nowrap;flex-shrink:0;">Trusted By</span>
+        <div class="hero__trusted-carousel" aria-hidden="true" style="position:relative;overflow:hidden;width:160px;flex-shrink:0;mask-image:linear-gradient(90deg,transparent 0%,black 15%,black 85%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0%,black 15%,black 85%,transparent 100%);">
           <ul class="hero__trusted-track">
             {pills.map((i) => <li class="pill" key={i}></li>)}
           </ul>
         </div>
       </div>
 
-      <h1 class="hero__heading" aria-label={headingLines.join(' ')}>
+      <h1 class="hero__heading" aria-label={headingLines.join(' ')} style="font-family:var(--font-display);color:#F5E9C6;font-size:4rem;line-height:1.05;font-weight:700;margin:0 0 32px 0;">
         {headingLines.map((line, lineIdx) => (
-          <span class="hero__heading-line">
+          <span class="hero__heading-line" style="display:block;">
             {line.split('').map((char, charIdx) => (
               <span
                 class="hero__char"
-                style={`animation-delay: ${(lineStartDelay[lineIdx] + charIdx * charDelay).toFixed(3)}s`}
+                style={`display:inline-block;opacity:0;transform:translateY(28px);animation:charFadeUp 0.55s cubic-bezier(0.22,1,0.36,1) forwards;animation-delay:${(lineStartDelay[lineIdx] + charIdx * charDelay).toFixed(3)}s`}
                 aria-hidden="true"
               >{char === ' ' ? '\u00A0' : char}</span>
             ))}
@@ -73,6 +58,7 @@ const lineStartDelay = [0.1, 0.5];
         href="https://x.com/mjavfxx"
         target="_blank"
         rel="noopener noreferrer"
+        style="display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;padding:18px 52px;border-radius:999px;background-color:#FF6B6B;color:#fff;font-weight:700;font-size:1.1rem;white-space:nowrap;text-decoration:none;transition:background-color 0.25s ease,transform 0.15s ease;"
       >
         Work With Me
       </a>
@@ -151,31 +137,6 @@ const lineStartDelay = [0.1, 0.5];
     min-width: 0;
   }
 
-  /* ---------- Trusted By ---------- */
-  .hero__trusted {
-    display: flex !important;
-    align-items: center !important;
-    gap: 16px !important;
-    margin-bottom: 28px !important;
-  }
-
-  .hero__trusted-label {
-    font-size: 1rem !important;
-    color: var(--color-white) !important;
-    opacity: 0.85 !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-  }
-
-  .hero__trusted-carousel {
-    position: relative;
-    overflow: hidden;
-    width: 160px !important;
-    flex-shrink: 0;
-    mask-image: linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%);
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 15%, black 85%, transparent 100%);
-  }
-
   .hero__trusted-track {
     display: flex;
     align-items: center;
@@ -184,48 +145,23 @@ const lineStartDelay = [0.1, 0.5];
   }
 
   .pill {
-    flex: 0 0 auto !important;
-    width: 36px !important;
-    height: 36px !important;
-    border-radius: 50% !important;
-    background: var(--color-white) !important;
-    opacity: 0.45 !important;
-    border: 2.5px solid var(--color-bg-mid) !important;
-    margin-left: -10px !important;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #fff;
+    opacity: 0.45;
+    border: 2.5px solid var(--color-bg-mid);
+    margin-left: -10px;
   }
 
   .pill:first-child {
-    margin-left: 0 !important;
+    margin-left: 0;
   }
 
   @keyframes trustedScroll {
     from { transform: translateX(0); }
     to   { transform: translateX(-50%); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .hero__trusted-track { animation: none; }
-  }
-
-  /* ---------- Hero heading ---------- */
-  .hero__heading {
-    font-family: var(--font-display) !important;
-    color: var(--color-cream) !important;
-    font-size: 4rem !important;
-    line-height: 1.05 !important;
-    font-weight: 700 !important;
-    margin: 0 0 32px 0 !important;
-  }
-
-  .hero__heading-line {
-    display: block !important;
-  }
-
-  .hero__char {
-    display: inline-block !important;
-    opacity: 0;
-    transform: translateY(28px);
-    animation: charFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
   @keyframes charFadeUp {
@@ -235,33 +171,7 @@ const lineStartDelay = [0.1, 0.5];
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .hero__char {
-      animation: none !important;
-      opacity: 1 !important;
-      transform: none !important;
-    }
-  }
-
-  /* ---------- CTA button ---------- */
-  .hero__cta {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    align-self: flex-start !important;
-    padding: 18px 52px !important;
-    border-radius: 999px !important;
-    background-color: var(--color-coral) !important;
-    color: var(--color-white) !important;
-    font-weight: 700 !important;
-    font-size: 1.1rem !important;
-    white-space: nowrap !important;
-    transition: background-color 0.25s ease, transform 0.15s ease !important;
-    text-decoration: none !important;
-  }
-
-  .hero__cta:hover,
-  .hero__cta:focus-visible {
+  .hero__cta:hover {
     background-color: var(--color-lime) !important;
     color: #0c1a00 !important;
   }
@@ -270,13 +180,14 @@ const lineStartDelay = [0.1, 0.5];
     transform: scale(0.97) !important;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .hero__trusted-track { animation: none; }
+  }
+
   @media (max-width: 860px) {
     .hero__content {
       grid-template-columns: 1fr;
       padding: 0 24px;
-    }
-    .hero__heading {
-      font-size: clamp(2rem, 8vw, 2.75rem) !important;
     }
   }
 </style>
