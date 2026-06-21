@@ -5,12 +5,18 @@
 //
 // Layout mirrors the SVG:
 //  - left: black video frame (Video 1 embed)
-//  - right: "Trusted By" + avatar pill row, hero heading, CTA button
+//  - right: "Trusted By" + avatar pill row (which doubles as an infinite
+//    marquee carousel), hero heading, CTA button
 //
 // Background: linear gradient (#180828 -> #4A167F -> #4F316D) plus an
 // angled overlay panel (#1B092D -> #50326E), matching paint0/paint1 in the SVG.
 
 const YT_VIDEO_1 = 'LEzIK0WT4Yk';
+
+// "Trusted By" pills — placeholder count, duplicated once so the marquee
+// loop point (translateX -50%) is seamless.
+const pillCount = 6;
+const pills = [...Array(pillCount * 2)].map((_, i) => i);
 ---
 
 <section id="home" class="hero">
@@ -36,12 +42,10 @@ const YT_VIDEO_1 = 'LEzIK0WT4Yk';
     <div class="hero__copy">
       <div class="hero__trusted">
         <span class="hero__trusted-label">Trusted By</span>
-        <div class="hero__trusted-pills" aria-hidden="true">
-          <span class="pill"></span>
-          <span class="pill"></span>
-          <span class="pill"></span>
-          <span class="pill"></span>
-          <span class="pill"></span>
+        <div class="hero__trusted-carousel" aria-hidden="true">
+          <ul class="hero__trusted-track">
+            {pills.map((i) => <li class="pill" key={i}></li>)}
+          </ul>
         </div>
       </div>
 
@@ -102,6 +106,16 @@ const YT_VIDEO_1 = 'LEzIK0WT4Yk';
   }
 
   /* ---------- Content ---------- */
+  /* NOTE on the "everything is zoomed out" bug:
+     the previous version sized the video frame with
+     `aspect-ratio: 372 / 213` — a ratio lifted directly from the SVG's raw
+     pixel coordinates instead of a normalized ratio. 372:213 ~= 1.746,
+     just off true 16:9 (1.778), but more importantly the grid column
+     feeding it had no clamp, so on wide viewports the whole two-column
+     layout stretched the column far past a sane content width and
+     everything inside it (heading, pills, button) scaled down visually
+     to fit. Fixing by (1) capping each column's growth with minmax(),
+     and (2) using a true 16:9 ratio for the video frame. */
   .hero__content {
     position: relative;
     z-index: 1;
@@ -110,7 +124,7 @@ const YT_VIDEO_1 = 'LEzIK0WT4Yk';
     margin: 0 auto;
     padding: 64px 32px;
     display: grid;
-    grid-template-columns: 1.05fr 1fr;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
     gap: 48px;
     align-items: center;
   }
@@ -118,7 +132,7 @@ const YT_VIDEO_1 = 'LEzIK0WT4Yk';
   .hero__video-frame {
     position: relative;
     width: 100%;
-    aspect-ratio: 372 / 213;
+    aspect-ratio: 16 / 9;
     border-radius: 20px;
     overflow: hidden;
     background: #000;
@@ -135,6 +149,7 @@ const YT_VIDEO_1 = 'LEzIK0WT4Yk';
     display: flex;
     flex-direction: column;
     gap: 28px;
+    min-width: 0;
   }
 
   .hero__trusted {
@@ -147,13 +162,35 @@ const YT_VIDEO_1 = 'LEzIK0WT4Yk';
     font-size: 0.95rem;
     color: var(--color-white);
     opacity: 0.85;
+    white-space: nowrap;
   }
 
-  .hero__trusted-pills {
+  /* ---------- Avatar pill carousel (infinite marquee) ---------- */
+  .hero__trusted-carousel {
+    position: relative;
+    overflow: hidden;
+    width: 160px;
+
+    /* Fade-out mask on both edges */
+    mask-image: linear-gradient(90deg, transparent 0%, black 20%, black 80%, transparent 100%);
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      black 20%,
+      black 80%,
+      transparent 100%
+    );
+  }
+
+  .hero__trusted-track {
     display: flex;
+    align-items: center;
+    width: max-content;
+    animation: trustedScroll 18s linear infinite;
   }
 
   .pill {
+    flex: 0 0 auto;
     width: 28px;
     height: 28px;
     border-radius: 50%;
@@ -165,6 +202,23 @@ const YT_VIDEO_1 = 'LEzIK0WT4Yk';
 
   .pill:first-child {
     margin-left: 0;
+  }
+
+  @keyframes trustedScroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      /* Track is two copies of the pill set placed end to end, so
+         shifting exactly one half-width loops seamlessly. */
+      transform: translateX(-50%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero__trusted-track {
+      animation: none;
+    }
   }
 
   /* ---------- Hero heading: fade in + move up on load ---------- */

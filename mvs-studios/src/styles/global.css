@@ -43,10 +43,22 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Explicit 100% baseline — never rely on the browser/inherited default,
+     and never override this with px or a fraction; doing so is what causes
+     the "everything is zoomed out" symptom (all rem-based sizing across
+     the site shrinks/grows together). */
+  font-size: 100%;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
+  /* Guard against any element pushing layout wider than the viewport —
+     horizontal overflow is the other common cause of mobile browsers
+     auto-zooming the whole page out to fit content. */
+  overflow-x: hidden;
 }
 
 body {

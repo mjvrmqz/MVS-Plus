@@ -3,30 +3,21 @@
 // Source: Navigation.svg — text-only nav (Home / Creators / Work / Contact)
 // on a translucent dark-purple bar (#1D0931 @ 40% opacity).
 //
-// Behavior per spec:
-// - Fixed to the top, stays put on scroll
-// - Background is blurred (glassmorphism) rather than fully opaque
-// - Home   -> #home section
-// - Creators -> #avatars section
-// - Work   -> first work video, #work section
-// - Contact -> #contact section
+// Behavior per spec: this build only contains Navigation + Home.
+// Work / Creators / Contact have no destinations yet, so each link is a
+// no-op placeholder (href="#") until those sections/pages exist.
 
-const links = [
-  { label: 'Home', href: '#home' },
-  { label: 'Creators', href: '#avatars' },
-  { label: 'Work', href: '#work' },
-  { label: 'Contact', href: '#contact' },
-];
+const links = ['Home', 'Work', 'Creators', 'Contact'];
 ---
 
 <header class="nav">
   <nav class="nav__inner">
     <ul class="nav__links">
       {
-        links.map((link) => (
+        links.map((label) => (
           <li>
-            <a href={link.href} class="nav__link">
-              {link.label}
+            <a href="#" class="nav__link" onclick="return false;">
+              {label}
             </a>
           </li>
         ))
