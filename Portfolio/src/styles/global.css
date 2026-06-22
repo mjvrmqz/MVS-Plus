@@ -62,6 +62,7 @@
 
 html {
   font-size: 100%;
+  scroll-behavior: smooth;
 }
 
 html,
@@ -124,6 +125,10 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .reveal {
     transition: none;
     opacity: 1;
