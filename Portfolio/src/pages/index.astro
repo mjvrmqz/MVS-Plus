@@ -52,16 +52,18 @@ import Footer from '../components/Footer.astro';
     z-index: 10;
   }
 
-  /* The arrow's viewBox (499x1078) is tall and tuned to span from the
-     very top of Video1 down to just above the footer CTA button.
-     Height drives the size — no width cap — so it always stretches
-     across the FULL combined height of Video1+Video2+Video3+Footer,
-     never compressed to a single section's height. */
+  /* The arrow's viewBox (499x1078) starts at the very top of Video1.
+     --arrow-scale controls how far down the curve reaches WITHOUT
+     moving the top start point (top:0 stays fixed; only the height,
+     and therefore the bottom end, shrinks/grows). 1 = full track
+     height (through Footer). Lower it to pull the tail up closer to
+     Video3 / Avatar 3. This is the one number to tweak by hand. */
   .work-arrow {
+    --arrow-scale: 0.8;
     position: absolute;
     top: 0;
     right: 48px;
-    height: 100%;
+    height: calc(var(--arrow-scale) * 100%);
     width: auto;
     pointer-events: none;
   }
