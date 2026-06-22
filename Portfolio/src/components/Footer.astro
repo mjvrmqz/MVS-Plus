@@ -4,14 +4,23 @@
 <footer class="footer">
   <div class="footer__inner">
     <!-- CTA Button -->
-    <a
-      class="footer__cta"
-      href="https://x.com/mjavfxx"
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      Work With Me
-    </a>
+    <div class="footer__cta-wrap">
+      <img
+        src="/images/cta-arrow.svg"
+        alt=""
+        class="footer__cta-caption"
+        aria-hidden="true"
+        loading="lazy"
+      />
+      <a
+        class="footer__cta"
+        href="https://x.com/mjavfxx"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Work With Me
+      </a>
+    </div>
 
     <!-- Avatar / Favicon -->
     <div class="footer__avatar-wrap">
@@ -62,6 +71,20 @@
     display: block;
   }
 
+  .footer__cta-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .footer__cta-caption {
+    position: absolute;
+    bottom: calc(100% + 14px);
+    right: -12px;
+    width: 130px;
+    height: auto;
+    pointer-events: none;
+  }
+
   .footer__cta {
     display: inline-flex;
     align-items: center;
@@ -108,6 +131,12 @@
     .footer__cta {
       padding: 28px 68px;
       font-size: 1.5rem;
+    }
+
+    .footer__cta-caption {
+      width: 100px;
+      bottom: calc(100% + 10px);
+      right: -8px;
     }
   }
 </style>
