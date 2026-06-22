@@ -31,14 +31,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
             >{char === ' ' ? '\u00A0' : char}</span>
           ))}
         </p>
-
-        <img
-          src="/images/arrow-2.svg"
-          alt=""
-          class="v2__arrow"
-          aria-hidden="true"
-          loading="lazy"
-        />
       </div>
 
       <div class="v2__video-wrap reveal">
@@ -162,17 +154,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     transform: translateY(0);
   }
 
-  /* Dashed connector arrow — flows from Avatar 2 down into Video 3 */
-  .v2__arrow {
-    position: absolute;
-    top: 100%;
-    left: 45%;
-    width: min(46vw, 460px);
-    height: auto;
-    pointer-events: none;
-    z-index: 2;
-  }
-
   @media (max-width: 760px) {
     .v2 {
       padding: 80px 0 96px;
@@ -195,11 +176,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
       left: -3%;
       right: -3%;
       clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-    }
-
-    .v2__arrow {
-      width: 60vw;
-      left: 45%;
     }
   }
 </style>

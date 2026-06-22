@@ -14,9 +14,42 @@ import Footer from '../components/Footer.astro';
   <main>
     <Hero />
     <Creators />
-    <Video1 />
-    <Video2 />
-    <Video3 />
+    <div class="work-sections">
+      <Video1 />
+      <Video2 />
+      <Video3 />
+      <img
+        src="/images/Arrow.svg"
+        alt=""
+        class="work-arrow"
+        aria-hidden="true"
+        loading="lazy"
+      />
+    </div>
   </main>
   <Footer />
 </Layout>
+
+<style>
+  .work-sections {
+    position: relative;
+  }
+
+  .work-arrow {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 38%;
+    max-width: 480px;
+    min-width: 280px;
+    height: auto;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  @media (max-width: 760px) {
+    .work-arrow {
+      display: none;
+    }
+  }
+</style>

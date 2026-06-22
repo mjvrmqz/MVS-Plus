@@ -45,14 +45,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
             >{char === ' ' ? '\u00A0' : char}</span>
           ))}
         </p>
-
-        <img
-          src="/images/arrow-3.svg"
-          alt=""
-          class="v3__arrow"
-          aria-hidden="true"
-          loading="lazy"
-        />
       </div>
     </div>
   </div>
@@ -162,17 +154,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     transform: translateY(0);
   }
 
-  /* Dashed connector arrow — flows from Avatar 3 down toward the footer CTA */
-  .v3__arrow {
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    width: min(46vw, 460px);
-    height: auto;
-    pointer-events: none;
-    z-index: 2;
-  }
-
   @media (max-width: 760px) {
     .v3 {
       padding: 80px 0 96px;
@@ -195,11 +176,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
       left: -3%;
       right: -3%;
       clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-    }
-
-    .v3__arrow {
-      width: 60vw;
-      left: 55%;
     }
   }
 </style>

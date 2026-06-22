@@ -45,14 +45,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
           ))}
         </p>
       </div>
-
-      <img
-        src="/images/arrow-1.svg"
-        alt=""
-        class="bottom__arrow"
-        aria-hidden="true"
-        loading="lazy"
-      />
     </div>
   </div>
 </section>
@@ -160,17 +152,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     transform: translateY(0);
   }
 
-  /* Dashed connector arrow — starts beside Avatar 1's subtitle and drops into Video 2 below */
-  .bottom__arrow {
-    position: absolute;
-    top: calc(100% - 40px);
-    right: 8%;
-    width: min(28vw, 280px);
-    height: auto;
-    pointer-events: none;
-    z-index: 3;
-  }
-
   @media (max-width: 760px) {
     .bottom {
       padding: 80px 0 96px;
@@ -193,10 +174,6 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
       left: -3%;
       right: -3%;
       clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
-    }
-
-    .bottom__arrow {
-      display: none;
     }
   }
 </style>
