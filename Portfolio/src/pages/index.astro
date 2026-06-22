@@ -57,12 +57,18 @@ import Footer from '../components/Footer.astro';
      moving the top start point (top:0 stays fixed; only the height,
      and therefore the bottom end, shrinks/grows). 1 = full track
      height (through Footer). Lower it to pull the tail up closer to
-     Video3 / Avatar 3. This is the one number to tweak by hand. */
+     Video3 / Avatar 3.
+     --arrow-shift controls horizontal position: it's added on top of
+     the base "right: 48px" anchor — bigger number = arrow moves
+     further LEFT (away from the right edge), without affecting the
+     top/bottom (vertical) positioning at all. These two are the
+     numbers to tweak by hand. */
   .work-arrow {
     --arrow-scale: 0.8;
+    --arrow-shift: 160px;
     position: absolute;
     top: 0;
-    right: 48px;
+    right: calc(48px + var(--arrow-shift));
     height: calc(var(--arrow-scale) * 100%);
     width: auto;
     pointer-events: none;
