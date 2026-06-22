@@ -1,11 +1,17 @@
 ---
 const video = { id: 'HEa9vzq4g9E', name: 'Avatar 1', subs: '200k Subscribers' };
+
+const nameChars = video.name.split('');
+const subsChars = video.subs.split('');
+const charDelay = 0.04;
+const nameStartDelay = 0.1;
+const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
 ---
 
 <section id="bottom" class="bottom">
   <div class="bottom__inner">
     <div class="bottom__row">
-      <div class="bottom__video-wrap">
+      <div class="bottom__video-wrap reveal">
         <div class="bottom__video-panel" aria-hidden="true"></div>
         <div class="bottom__video">
           <iframe
@@ -20,8 +26,24 @@ const video = { id: 'HEa9vzq4g9E', name: 'Avatar 1', subs: '200k Subscribers' };
       </div>
 
       <div class="bottom__label">
-        <p class="bottom__name">{video.name}</p>
-        <p class="bottom__subs">{video.subs}</p>
+        <p class="bottom__name" aria-label={video.name}>
+          {nameChars.map((char, i) => (
+            <span
+              class="bottom__char reveal"
+              style={`--reveal-delay:${(nameStartDelay + i * charDelay).toFixed(3)}s`}
+              aria-hidden="true"
+            >{char === ' ' ? '\u00A0' : char}</span>
+          ))}
+        </p>
+        <p class="bottom__subs" aria-label={video.subs}>
+          {subsChars.map((char, i) => (
+            <span
+              class="bottom__char reveal"
+              style={`--reveal-delay:${(subsStartDelay + i * charDelay).toFixed(3)}s`}
+              aria-hidden="true"
+            >{char === ' ' ? '\u00A0' : char}</span>
+          ))}
+        </p>
       </div>
     </div>
   </div>
@@ -31,7 +53,7 @@ const video = { id: 'HEa9vzq4g9E', name: 'Avatar 1', subs: '200k Subscribers' };
   .bottom {
     width: 100%;
     background: linear-gradient(180deg, #4A167F 0%, #3B1265 100%);
-    padding: 56px 0;
+    padding: 96px 0 112px;
   }
 
   .bottom__inner {
@@ -44,13 +66,14 @@ const video = { id: 'HEa9vzq4g9E', name: 'Avatar 1', subs: '200k Subscribers' };
     position: relative;
     display: flex;
     align-items: center;
-    gap: 32px;
+    gap: 64px;
   }
 
   .bottom__video-wrap {
     position: relative;
     width: 100%;
-    max-width: 383px;
+    max-width: 560px;
+    flex: 1.1;
     flex-shrink: 0;
   }
 
@@ -76,6 +99,7 @@ const video = { id: 'HEa9vzq4g9E', name: 'Avatar 1', subs: '200k Subscribers' };
     overflow: hidden;
     background: #000;
     z-index: 1;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
   }
 
   .bottom__video iframe {
@@ -94,24 +118,48 @@ const video = { id: 'HEa9vzq4g9E', name: 'Avatar 1', subs: '200k Subscribers' };
     margin: 0;
     font-family: var(--font-display);
     font-weight: 800;
-    font-size: clamp(1.5rem, 3vw, 2.2rem);
-    line-height: 1.1;
+    font-size: clamp(2.4rem, 5vw, 4rem);
+    line-height: 1.05;
     color: var(--color-white);
   }
 
   .bottom__subs {
-    margin: 0;
+    margin: 4px 0 0;
     font-family: var(--font-display);
     font-weight: 400;
-    font-size: clamp(1rem, 2vw, 1.3rem);
+    font-size: clamp(1.3rem, 3vw, 2rem);
     line-height: 1.1;
     color: var(--color-cream);
   }
 
-  @media (max-width: 640px) {
+  .bottom__char {
+    display: inline-block;
+  }
+
+  /* Per-character scroll reveal, same visual language as the Hero
+     heading animation, but driven by the shared .reveal/.is-visible
+     IntersectionObserver (Layout.astro) instead of firing on load. */
+  .bottom__char.reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0s);
+  }
+
+  .bottom__char.reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (max-width: 760px) {
     .bottom__row {
       flex-direction: column;
-      gap: 16px;
+      gap: 32px;
+    }
+
+    .bottom__video-wrap {
+      max-width: 100%;
     }
 
     .bottom__video-panel {
