@@ -54,27 +54,27 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
   .v3 {
     width: 100%;
     background: linear-gradient(180deg, #270C40 0%, #1C0A2E 100%);
-    padding: 96px 0 112px;
+    padding: 120px 0 140px;
   }
 
   .v3__inner {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 0 32px;
+    padding: 0 48px;
   }
 
   .v3__row {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 64px;
+    gap: 80px;
   }
 
   /* Video on left — panel peeks from right side of video */
   .v3__video-wrap {
     position: relative;
     width: 100%;
-    max-width: 560px;
+    max-width: 700px;
     flex: 1.1;
     flex-shrink: 0;
   }
@@ -121,7 +121,7 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     margin: 0;
     font-family: var(--font-display);
     font-weight: 800;
-    font-size: clamp(2.4rem, 5vw, 4rem);
+    font-size: clamp(2.8rem, 5.5vw, 5rem);
     line-height: 1.05;
     color: var(--color-white);
   }
@@ -130,7 +130,7 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     margin: 0;
     font-family: 'Mollen Regular', 'Mollen', sans-serif;
     font-weight: 400;
-    font-size: clamp(1.3rem, 3vw, 2rem);
+    font-size: clamp(1.5rem, 3.5vw, 2.4rem);
     line-height: 1.1;
     color: var(--color-cream);
   }
@@ -153,6 +153,14 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
   }
 
   @media (max-width: 760px) {
+    .v3 {
+      padding: 80px 0 96px;
+    }
+
+    .v3__inner {
+      padding: 0 24px;
+    }
+
     .v3__row {
       flex-direction: column;
       gap: 32px;

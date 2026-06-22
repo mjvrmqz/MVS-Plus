@@ -1,19 +1,26 @@
 ---
-const links = ['Home', 'Work', 'Creators', 'Contact'];
+const links = [
+  { label: 'Home',     href: '#home' },
+  { label: 'Work',     href: '#work' },
+  { label: 'Creators', href: '#creators' },
+  { label: 'Contact',  href: 'https://x.com/mjavfxx', external: true },
+];
 ---
 
 <header class="nav">
   <nav class="nav__inner">
     <ul class="nav__links">
-      {
-        links.map((label) => (
-          <li>
-            <a href="#" class="nav__link" onclick="return false;">
-              {label}
-            </a>
-          </li>
-        ))
-      }
+      {links.map(({ label, href, external }) => (
+        <li>
+          <a
+            href={href}
+            class="nav__link"
+            {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+          >
+            {label}
+          </a>
+        </li>
+      ))}
     </ul>
   </nav>
 </header>
