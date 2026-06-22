@@ -44,15 +44,15 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
             >{char === ' ' ? '\u00A0' : char}</span>
           ))}
         </p>
-
-        <img
-          src="/images/arrow-1.svg"
-          alt=""
-          class="bottom__arrow"
-          aria-hidden="true"
-          loading="lazy"
-        />
       </div>
+
+      <img
+        src="/images/arrow-1.svg"
+        alt=""
+        class="bottom__arrow"
+        aria-hidden="true"
+        loading="lazy"
+      />
     </div>
   </div>
 </section>
@@ -63,6 +63,7 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     background: linear-gradient(180deg, #441378 0%, #3B1265 100%);
     padding: 120px 0 140px;
     position: relative;
+    overflow: visible;
   }
 
   .bottom__inner {
@@ -159,15 +160,15 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     transform: translateY(0);
   }
 
-  /* Dashed connector arrow — flows from Avatar 1 down into Video 2 */
+  /* Dashed connector arrow — starts beside Avatar 1's subtitle and drops into Video 2 below */
   .bottom__arrow {
     position: absolute;
-    top: 100%;
-    left: 50%;
-    width: min(46vw, 460px);
+    top: calc(100% - 40px);
+    right: 8%;
+    width: min(28vw, 280px);
     height: auto;
     pointer-events: none;
-    z-index: 2;
+    z-index: 3;
   }
 
   @media (max-width: 760px) {
@@ -195,8 +196,7 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     }
 
     .bottom__arrow {
-      width: 60vw;
-      left: 55%;
+      display: none;
     }
   }
 </style>
