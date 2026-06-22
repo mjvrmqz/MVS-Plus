@@ -18,13 +18,14 @@ import Footer from '../components/Footer.astro';
       <Video1 />
       <Video2 />
       <Video3 />
-      <img
-        src="/images/Arrow.svg"
-        alt=""
-        class="work-arrow"
-        aria-hidden="true"
-        loading="lazy"
-      />
+      <div class="work-arrow-track" aria-hidden="true">
+        <img
+          src="/images/Arrow.svg"
+          alt=""
+          class="work-arrow"
+          loading="lazy"
+        />
+      </div>
     </div>
   </main>
   <Footer />
@@ -35,19 +36,38 @@ import Footer from '../components/Footer.astro';
     position: relative;
   }
 
+  /* Mirrors each section's .bottom__inner / .v2__inner / .v3__inner
+     (max-width: 1400px; margin: 0 auto; padding: 0 48px) so the arrow
+     scales and tracks with the actual content column, not the viewport. */
+  .work-arrow-track {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 48px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
   .work-arrow {
     position: absolute;
     top: 0;
-    right: 0;
+    right: 48px;
     width: 38%;
     max-width: 480px;
     min-width: 280px;
     height: auto;
     pointer-events: none;
-    z-index: 10;
   }
 
   @media (max-width: 760px) {
+    .work-arrow-track {
+      padding: 0 24px;
+    }
+
     .work-arrow {
       display: none;
     }
