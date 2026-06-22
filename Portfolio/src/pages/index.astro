@@ -18,6 +18,7 @@ import Footer from '../components/Footer.astro';
       <Video1 />
       <Video2 />
       <Video3 />
+      <Footer />
       <div class="work-arrow-track" aria-hidden="true">
         <img
           src="/images/Arrow.svg"
@@ -28,7 +29,6 @@ import Footer from '../components/Footer.astro';
       </div>
     </div>
   </main>
-  <Footer />
 </Layout>
 
 <style>
@@ -52,18 +52,17 @@ import Footer from '../components/Footer.astro';
     z-index: 10;
   }
 
-  /* The arrow's viewBox (499x1078) is tall and tuned to span the FULL
-     height of Video1+Video2+Video3 stacked together — Avatar 1's loop
-     near the top, Avatar 2's loop mid-height, Avatar 3's tail near the
-     bottom. It must stretch to the track's full height, not just sit
-     at its natural aspect-ratio size from a width constraint. */
+  /* The arrow's viewBox (499x1078) is tall and tuned to span from the
+     very top of Video1 down to just above the footer CTA button.
+     Height drives the size — no width cap — so it always stretches
+     across the FULL combined height of Video1+Video2+Video3+Footer,
+     never compressed to a single section's height. */
   .work-arrow {
     position: absolute;
     top: 0;
     right: 48px;
     height: 100%;
     width: auto;
-    max-width: 480px;
     pointer-events: none;
   }
 
