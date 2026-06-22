@@ -1,0 +1,108 @@
+---
+---
+
+<footer class="footer">
+  <div class="footer__inner">
+    <!-- Avatar / Favicon -->
+    <div class="footer__avatar-wrap">
+      <img
+        src="/images/avatar-01.png"
+        alt="MVS Studios avatar"
+        class="footer__avatar"
+        width="78"
+        height="78"
+        loading="lazy"
+      />
+    </div>
+
+    <!-- CTA Button -->
+    <a
+      class="footer__cta"
+      href="https://x.com/mjavfxx"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      Work With Me
+    </a>
+
+    <!-- Copyright -->
+    <p class="footer__copy">
+      Copyright 2025 &mdash; MVS Studios. All rights reserved.
+    </p>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    width: 100%;
+    background: linear-gradient(180deg, #1C0A2E 0%, #1B092D 100%);
+    padding: 96px 0 64px;
+  }
+
+  .footer__inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+  }
+
+  .footer__avatar-wrap {
+    display: flex;
+    justify-content: center;
+  }
+
+  .footer__avatar {
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .footer__cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px 52px;
+    border-radius: 999px;
+    background-color: var(--color-coral);
+    color: #fff;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.1rem;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color 0.25s ease, color 0.25s ease, transform 0.15s ease;
+  }
+
+  .footer__cta:hover {
+    background-color: var(--color-lime);
+    color: #0c1a00;
+  }
+
+  .footer__cta:active {
+    transform: scale(0.97);
+  }
+
+  .footer__copy {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    color: var(--color-white);
+    opacity: 0.6;
+    text-align: center;
+  }
+
+  @media (max-width: 760px) {
+    .footer {
+      padding: 64px 0 48px;
+    }
+
+    .footer__inner {
+      gap: 32px;
+    }
+  }
+</style>
