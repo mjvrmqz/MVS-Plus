@@ -1,4 +1,3 @@
----
 // Video 2 — label LEFT, video RIGHT (panel peeks left from video, mirrored from Video 1)
 const video = { id: '_P64RnHuQEg', name: 'Avatar 2', subs: '200k Subscribers' };
 
@@ -79,6 +78,7 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     display: flex;
     flex-direction: column;
     gap: 0;
+    z-index: 2;
   }
 
   .v2__name {
@@ -106,6 +106,7 @@ const subsStartDelay = nameStartDelay + nameChars.length * charDelay + 0.1;
     max-width: 860px;
     flex: 1.3;
     flex-shrink: 0;
+    z-index: 2;
   }
 
   .v2__video-panel {

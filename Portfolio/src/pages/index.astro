@@ -1,4 +1,3 @@
----
 import Layout from '../layouts/Layout.astro';
 import Navigation from '../components/Navigation.astro';
 import Hero from '../components/Hero.astro';
@@ -39,9 +38,10 @@ import Footer from '../components/Footer.astro';
   /* Mirrors each section's .bottom__inner / .v2__inner / .v3__inner
      (max-width: 1400px; margin: 0 auto; padding: 0 48px) so the arrow
      scales and tracks with the actual content column, not the viewport.
-     z-index: -1 so it renders BEHIND each section's video/label content
-     (the dashed curve should look like it threads behind the text and
-     thumbnails, not on top of them). */
+     z-index: 1 so it renders ABOVE each section's opaque background
+     but BELOW the text labels (which are bumped to z-index: 2) — the
+     curve should look like it threads behind the text, not behind the
+     entire purple section background. */
   .work-arrow-track {
     position: absolute;
     top: 0;
@@ -52,7 +52,7 @@ import Footer from '../components/Footer.astro';
     margin: 0 auto;
     padding: 0 48px;
     pointer-events: none;
-    z-index: -1;
+    z-index: 1;
   }
 
   /* The arrow's viewBox (499x1078) starts at the very top of Video1.
