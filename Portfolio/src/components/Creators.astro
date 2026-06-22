@@ -7,6 +7,22 @@ const creators = [
 ---
 
 <section id="creators" class="creators">
+  <div class="creators__bg" aria-hidden="true">
+    <svg class="creators__bg-svg" viewBox="0 0 1400 700" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="0,0 280,0 140,160 0,260" fill="#ffffff" opacity="0.05" />
+      <polygon points="280,0 620,0 480,140 140,160" fill="#ffffff" opacity="0.03" />
+      <polygon points="620,0 980,0 760,210 480,140" fill="#ffffff" opacity="0.06" />
+      <polygon points="980,0 1400,0 1400,180 760,210" fill="#ffffff" opacity="0.04" />
+      <polygon points="0,260 140,160 480,140 360,400 90,420" fill="#ffffff" opacity="0.04" />
+      <polygon points="480,140 760,210 620,420 360,400" fill="#ffffff" opacity="0.07" />
+      <polygon points="760,210 1400,180 1400,420 620,420" fill="#ffffff" opacity="0.03" />
+      <polygon points="0,420 90,420 360,400 260,620 0,640" fill="#ffffff" opacity="0.05" />
+      <polygon points="360,400 620,420 520,640 260,620" fill="#ffffff" opacity="0.04" />
+      <polygon points="620,420 1400,420 1400,640 520,640" fill="#ffffff" opacity="0.05" />
+      <polygon points="0,640 0,700 1400,700 1400,640 520,640 260,620" fill="#ffffff" opacity="0.03" />
+    </svg>
+  </div>
+
   <div class="creators__inner">
     <h2 class="creators__title">
       <span class="creators__title-line1">Creators I Have</span>
@@ -30,12 +46,28 @@ const creators = [
 
 <style>
   .creators {
+    position: relative;
     width: 100%;
     background: linear-gradient(160deg, #50336E 0%, #4A167E 60%, #3a0f6e 100%);
     padding: 72px 0 88px;
+    overflow: hidden;
+  }
+
+  .creators__bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .creators__bg-svg {
+    width: 100%;
+    height: 100%;
   }
 
   .creators__inner {
+    position: relative;
+    z-index: 1;
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 32px;
