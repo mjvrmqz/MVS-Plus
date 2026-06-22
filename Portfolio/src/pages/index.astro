@@ -52,14 +52,18 @@ import Footer from '../components/Footer.astro';
     z-index: 10;
   }
 
+  /* The arrow's viewBox (499x1078) is tall and tuned to span the FULL
+     height of Video1+Video2+Video3 stacked together — Avatar 1's loop
+     near the top, Avatar 2's loop mid-height, Avatar 3's tail near the
+     bottom. It must stretch to the track's full height, not just sit
+     at its natural aspect-ratio size from a width constraint. */
   .work-arrow {
     position: absolute;
     top: 0;
     right: 48px;
-    width: 38%;
+    height: 100%;
+    width: auto;
     max-width: 480px;
-    min-width: 280px;
-    height: auto;
     pointer-events: none;
   }
 
