@@ -1,4 +1,4 @@
 [build]
-  base = "mvs-studios"
+  base = "Portfolio"
   command = "npm run build"
   publish = "dist"
