@@ -7,9 +7,9 @@ for outreach compatibility, then creates NEW entries in the Screening database.
 After a successful screening entry is created, the lead's Select property
 is updated to "Finished" so it is skipped on the next run.
 
-Title style scoring uses Phi-3 Mini (local, free) to evaluate tone and format
-against the reference titles in Search Titles.txt. The model is explicitly
-unloaded from memory before Playwright launches to avoid RAM pressure.
+Title style scoring uses a locally hosted LLM via an OpenAI-compatible endpoint
+(Ollama, vLLM, LM Studio, etc.) to evaluate tone and format against the
+reference titles in Search Titles.txt.
 """
 
 # ─── SCORING CONSTANTS ────────────────────────────────────────────────────────
@@ -24,29 +24,33 @@ FREQ_TOO_HIGH       = 5.0
 FREQ_TOO_LOW        = 0.25
 
 VIDEO_SAMPLE_SIZE   = 50
-TITLE_SCORE_SAMPLE  = 20   # titles sent to Phi-3; evenly sampled from VIDEO_SAMPLE_SIZE
+TITLE_SCORE_SAMPLE  = 20   # titles sent to LLM; evenly sampled from VIDEO_SAMPLE_SIZE
 MIN_SUBSCRIBERS     = 10_000
 X_FOLLOWER_SAMPLE   = 300
 
 X_COOKIES_URL     = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/X/x_cookies.json"
 SEARCH_TITLES_URL = "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/refs/heads/main/Outreach/Scrapers/YouTube/Search%20Titles.txt"
 
-PHI3_MODEL = "microsoft/Phi-3-mini-4k-instruct"
+# ─── LOCAL LLM CONFIG ─────────────────────────────────────────────────────────
+
+LLM_ENDPOINT     = "http://localhost:11434/v1/chat/completions"  # Ollama / vLLM / LM Studio
+LLM_MODEL        = "llama3"   # model name as your local server knows it
+LLM_TIMEOUT      = 60         # seconds — title scoring prompt is longer than scraper
+LLM_MAX_RETRIES  = 3          # retry attempts on failure
+LLM_RETRY_DELAY  = 2          # seconds between retries
 
 # ─── IMPORTS ──────────────────────────────────────────────────────────────────
 
 import asyncio
-import gc
 import os
 import re
 import time
+import json
 import logging
 import traceback
 from datetime import datetime
 
 import requests
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
@@ -285,57 +289,23 @@ def load_search_titles():
     log.info(f"Loaded {len(titles)} reference titles")
     return titles
 
-# ─── PHI-3 MINI TITLE SCORING ─────────────────────────────────────────────────
-
-def load_phi3():
-    """
-    Loads Phi-3 Mini tokenizer and model directly.
-
-    Key compatibility notes for transformers 5.x:
-    - Use `torch_dtype` (not `dtype`) — the kwarg was renamed in transformers 5.x
-    - No `trust_remote_code=True` needed — Phi-3 is natively supported since 4.40
-    - Use `attn_implementation="eager"` to avoid flash-attention on CPU/MPS
-    """
-    log.info("Loading Phi-3 Mini model...")
-    tokenizer = AutoTokenizer.from_pretrained(PHI3_MODEL)
-    model = AutoModelForCausalLM.from_pretrained(
-        PHI3_MODEL,
-        torch_dtype=torch.float32,       # CPU-safe; was `dtype=` in older transformers
-        attn_implementation="eager",     # avoids flash-attention path on CPU/MPS
-        low_cpu_mem_usage=True,
-    )
-    model.eval()
-    log.info("Phi-3 Mini loaded.")
-    return model, tokenizer
-
-def unload_phi3(model, tokenizer):
-    """Explicitly removes Phi-3 from memory before Playwright launches."""
-    log.info("Unloading Phi-3 Mini to free RAM...")
-    del model, tokenizer
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    log.info("Phi-3 Mini unloaded.")
+# ─── LLM TITLE SCORING ────────────────────────────────────────────────────────
 
 def _sample_titles(titles, n=TITLE_SCORE_SAMPLE):
     """
     Returns up to n titles sampled evenly across the full list.
     Evenly spaced so the sample represents the channel's range, not just
-    the most recent videos (which is what front-truncation would give).
+    the most recent videos.
     """
     if len(titles) <= n:
         return titles
     step = len(titles) / n
     return [titles[int(i * step)] for i in range(n)]
 
-def title_style_score(model, tokenizer, channel_titles, reference_titles):
+def title_style_score(channel_titles, reference_titles):
     """
-    Uses Phi-3 Mini to score how well a channel's titles match the tone and
-    format of the reference titles in Search Titles.txt.
-
-    Feeds a capped, evenly-sampled set of titles to avoid prompt truncation
-    silently biasing the score toward whichever titles happen to appear first.
-
+    Uses a locally hosted LLM (OpenAI-compatible endpoint) to score how well
+    a channel's titles match the tone and format of the reference titles.
     Returns (score: int, reason: str).
     """
     if not channel_titles:
@@ -347,70 +317,78 @@ def title_style_score(model, tokenizer, channel_titles, reference_titles):
     log.debug(f"  Title sample ({len(sampled)}/{len(channel_titles)}): {sampled}")
 
     prompt = (
-        f"<|user|>\n"
-        f"You are evaluating whether a YouTube channel is a good fit for a video editing agency "
-        f"that works with documentary and commentary-style creators.\n\n"
-        f"The agency wants channels where MOST videos have a narrative, investigative, or essay-style "
-        f"format. Score strictly — if the majority of titles look like gameshow segments, panel shows, "
-        f"or recurring entertainment formats, the channel does NOT fit regardless of topic.\n\n"
-        f"GOOD fit — titles that look like:\n"
-        f"- Narrative/investigative framing: \"The Downfall of X\", \"How X Destroyed Their Career\"\n"
-        f"- Essay or explainer style: \"Why X Changed Everything\", \"The Truth About X\"\n"
-        f"- Documentary episode structure: a clear subject with something that happened to them\n"
-        f"- Serious, analytical, or dramatic long-form energy\n\n"
-        f"BAD fit — titles that look like:\n"
-        f"- Gameshow/challenge formats: \"Find The X\", \"Catch The Y\", \"Guess The Z\"\n"
-        f"- Panel or reaction show segments: \"Ft. [Celebrity] | [Show Name]\", \"[Person] Reacts To\"\n"
-        f"- Recurring branded entertainment segments: \"| Dilemmas\", \"| Don't Get Catfished\", \"| Random or Related\"\n"
-        f"- Vlog, prank, lifestyle, or hype content\n\n"
-        f"Reference titles representing the IDEAL tone:\n"
+        "You are evaluating whether a YouTube channel is a good fit for a video editing agency "
+        "that works with documentary and commentary-style creators.\n\n"
+        "The agency wants channels where MOST videos have a narrative, investigative, or essay-style "
+        "format. Score strictly — if the majority of titles look like gameshow segments, panel shows, "
+        "or recurring entertainment formats, the channel does NOT fit regardless of topic.\n\n"
+        "GOOD fit — titles that look like:\n"
+        "- Narrative/investigative framing: 'The Downfall of X', 'How X Destroyed Their Career'\n"
+        "- Essay or explainer style: 'Why X Changed Everything', 'The Truth About X'\n"
+        "- Documentary episode structure: a clear subject with something that happened to them\n"
+        "- Serious, analytical, or dramatic long-form energy\n\n"
+        "BAD fit — titles that look like:\n"
+        "- Gameshow/challenge formats: 'Find The X', 'Catch The Y', 'Guess The Z'\n"
+        "- Panel or reaction show segments: 'Ft. [Celebrity] | [Show Name]', '[Person] Reacts To'\n"
+        "- Recurring branded entertainment segments: '| Dilemmas', '| Don't Get Catfished'\n"
+        "- Vlog, prank, lifestyle, or hype content\n\n"
+        "Reference titles representing the IDEAL tone:\n"
         + "\n".join(f"- {t}" for t in reference_titles)
         + f"\n\nChannel's recent video titles ({len(sampled)} sampled):\n"
         + "\n".join(f"- {t}" for t in sampled)
-        + f"\n\nScore 0-100 where:\n"
-        f"90-100: Almost every title is documentary/essay/investigative style\n"
-        f"70-89: Majority fit, occasional off-tone video\n"
-        f"50-69: Mixed — some long-form commentary alongside other formats\n"
-        f"30-49: Mostly entertainment/gameshow format, a few commentary titles\n"
-        f"0-29: Wrong format entirely — gameshow, panel show, vlog, prank, hype\n\n"
-        f"Respond with exactly two lines, nothing else:\n"
-        f"SCORE: <integer 0-100>\n"
-        f"REASON: <one sentence>\n"
-        f"<|end|>\n<|assistant|>\n"
+        + "\n\nScore 0-100 where:\n"
+        "90-100: Almost every title is documentary/essay/investigative style\n"
+        "70-89: Majority fit, occasional off-tone video\n"
+        "50-69: Mixed — some long-form commentary alongside other formats\n"
+        "30-49: Mostly entertainment/gameshow format, a few commentary titles\n"
+        "0-29: Wrong format entirely — gameshow, panel show, vlog, prank, hype\n\n"
+        "Respond with ONLY valid JSON — no markdown, no explanation:\n"
+        '{"score": <integer 0-100>, "reason": "<one sentence>"}'
     )
 
-    try:
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=3072)
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=60,
-                do_sample=False,
-                pad_token_id=tokenizer.eos_token_id,
+    payload = {
+        "model":       LLM_MODEL,
+        "messages":    [{"role": "user", "content": prompt}],
+        "temperature": 0.0,
+        "max_tokens":  80,
+    }
+
+    last_error = None
+    for attempt in range(1, LLM_MAX_RETRIES + 1):
+        try:
+            resp = requests.post(
+                LLM_ENDPOINT,
+                json=payload,
+                timeout=LLM_TIMEOUT,
+                headers={"Content-Type": "application/json"},
             )
-        # Decode only the newly generated tokens (not the prompt)
-        new_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-        response   = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"].strip()
 
-        log.debug(f"  Phi-3 raw response: {response!r}")
+            # Strip accidental markdown fences
+            raw = re.sub(r"^```[a-z]*\n?|```$", "", raw, flags=re.MULTILINE).strip()
 
-        score  = 50
-        reason = "Could not parse model response"
+            parsed = json.loads(raw)
+            score  = max(0, min(100, int(parsed["score"])))
+            reason = parsed.get("reason", "")
+            log.info(f"  LLM title score={score} | {reason}")
+            return score, reason
 
-        for line in response.splitlines():
-            line = line.strip()
-            if line.upper().startswith("SCORE:"):
-                m = re.search(r"\d+", line)
-                if m:
-                    score = max(0, min(100, int(m.group())))
-            elif line.upper().startswith("REASON:"):
-                reason = line.split(":", 1)[-1].strip()
+        except requests.exceptions.Timeout:
+            last_error = f"LLM timeout (attempt {attempt}/{LLM_MAX_RETRIES})"
+            log.warning(f"  ⚠ {last_error}")
+        except requests.exceptions.RequestException as e:
+            last_error = f"LLM request error: {e} (attempt {attempt}/{LLM_MAX_RETRIES})"
+            log.warning(f"  ⚠ {last_error}")
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            last_error = f"LLM bad response: {e} (attempt {attempt}/{LLM_MAX_RETRIES})"
+            log.warning(f"  ⚠ {last_error}")
 
-        return score, reason
+        if attempt < LLM_MAX_RETRIES:
+            time.sleep(LLM_RETRY_DELAY)
 
-    except Exception as e:
-        log.warning(f"  Phi-3 title scoring failed ({e}) — defaulting to 50")
-        return 50, "Model scoring unavailable — title score neutral"
+    log.warning(f"  LLM title scoring failed after {LLM_MAX_RETRIES} attempts — defaulting to 50")
+    return 50, "LLM unavailable — title score neutral"
 
 # ─── X / TWITTER SCRAPING ─────────────────────────────────────────────────────
 
@@ -648,22 +626,10 @@ def main():
         log.error(f"Failed to load Search Titles.txt: {e} — title scoring will be neutral")
         reference_titles = []
 
-    # Load Phi-3 once — unloaded before Playwright runs
-    phi3_model = phi3_tokenizer = None
-    if reference_titles:
-        try:
-            phi3_model, phi3_tokenizer = load_phi3()
-        except Exception as e:
-            log.error(f"Failed to load Phi-3: {e} — title scoring will be neutral")
-            log.error(traceback.format_exc())
-
     log.info("Fetching Leads from Notion scraper database...")
     all_pages = query_database(SOURCE_DB_ID)
     leads     = [p for p in all_pages if select_val(p, "Select") == "Leads"]
     log.info(f"Found {len(leads)} Lead(s) to process")
-
-    # ── Phase 1: Score all channels while Phi-3 is in memory ──────────────────
-    scored_leads = []
 
     for page in leads:
         channel_id = text_val(page, "ChannelID")
@@ -706,22 +672,8 @@ def main():
         f_score = upload_frequency_score(upw)
         log.info(f"  Upload freq: {upw:.2f}/wk → score {f_score}")
 
-        if phi3_model and reference_titles:
-            t_score, t_reason = title_style_score(phi3_model, phi3_tokenizer, channel_titles, reference_titles)
-        else:
-            t_score, t_reason = 50, "Phi-3 unavailable — title score neutral"
+        t_score, t_reason = title_style_score(channel_titles, reference_titles)
         log.info(f"  Title style: {t_score}  ({t_reason})")
-
-        scored_leads.append((page, ch_info, channel_id, f_score, t_score, t_reason, videos))
-
-    # ── Unload Phi-3 before launching Playwright ───────────────────────────────
-    if phi3_model is not None:
-        unload_phi3(phi3_model, phi3_tokenizer)
-        phi3_model = phi3_tokenizer = None
-
-    # ── Phase 2: Social scoring + entry creation ───────────────────────────────
-    for page, ch_info, channel_id, f_score, t_score, t_reason, videos in scored_leads:
-        page_id = page["id"]
 
         s_score, s_note = social_score(page)
         log.info(f"  Social score: {s_score}  ({s_note})")

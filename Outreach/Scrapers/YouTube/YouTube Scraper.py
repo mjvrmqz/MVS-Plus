@@ -7,7 +7,7 @@ checks matching channels for social links, and logs everything to Notion.
 Automatically rotates through multiple API keys when quota is hit.
 
 Setup:
-    /opt/homebrew/bin/python3.13 -m pip install google-api-python-client requests --break-system-packages
+    /opt/homebrew/bin/python3.13 -m pip install google-api-python-client rapidfuzz requests --break-system-packages
 
 Usage:
     Set API_KEYS and NOTION_KEY in the CONFIG section, then:
@@ -24,6 +24,7 @@ import requests
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from rapidfuzz import fuzz
 
 # ─────────────────────────────────────────────
 #  CONFIG — reads from environment variables
@@ -48,16 +49,7 @@ GITHUB_TOKEN   = os.environ.get("GH_PAT", "")
 GITHUB_API_URL = "https://api.github.com/repos/mjvrmqz/MVS-Studios/contents/Outreach/Scrapers/YouTube/Search%20Titles.txt"
 
 OUTPUT_FILE            = "scan_results.json"
-SIMILARITY_THRESHOLD   = 65      # 0-100; scores >= this count as a match
-
-# ─────────────────────────────────────────────
-#  LOCAL LLM CONFIG
-# ─────────────────────────────────────────────
-LLM_ENDPOINT      = "http://localhost:11434/v1/chat/completions"  # Ollama / vLLM / LM Studio
-LLM_MODEL         = "llama3"   # model name as your local server knows it
-LLM_TIMEOUT       = 30         # seconds before giving up on a single request
-LLM_MAX_RETRIES   = 3          # retry attempts on failure
-LLM_RETRY_DELAY   = 2          # seconds between retries
+SIMILARITY_THRESHOLD   = 60
 MAX_CONSECUTIVE_MISSES = 15
 RESULTS_PER_PAGE       = 10
 MAX_PAGES              = 5
@@ -173,73 +165,11 @@ def mark_title_done(title: str, all_lines: list, sha: str) -> list:
 
 
 def is_similar(video_title: str, search_query: str):
-    """
-    Uses a locally hosted LLM (OpenAI-compatible endpoint) to compare titles.
-    Evaluates topic, tone, emotional framing, narrative framing, creator style,
-    audience appeal, and overall resemblance.
-    Returns (matched: bool, score: int). Falls back to (False, 0) on failure.
-    """
-    prompt = (
-        "You are a strict content-similarity evaluator.\n"
-        "Compare these two YouTube video titles and rate their overall similarity "
-        "on a 0-100 scale, considering:\n"
-        "  - topic similarity\n"
-        "  - tone similarity\n"
-        "  - emotional framing\n"
-        "  - narrative framing\n"
-        "  - creator style\n"
-        "  - audience appeal\n"
-        "  - overall resemblance\n\n"
-        f"Search title   : {search_query}\n"
-        f"Candidate title: {video_title}\n\n"
-        "Respond with ONLY valid JSON — no markdown, no explanation:\n"
-        '{"score": <0-100 integer>, "reason": "<one short sentence>"}'
+    score = max(
+        fuzz.token_set_ratio(video_title.lower(), search_query.lower()),
+        fuzz.partial_ratio(video_title.lower(), search_query.lower())
     )
-
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.0,
-        "max_tokens": 80,
-    }
-
-    last_error = None
-    for attempt in range(1, LLM_MAX_RETRIES + 1):
-        try:
-            resp = requests.post(
-                LLM_ENDPOINT,
-                json=payload,
-                timeout=LLM_TIMEOUT,
-                headers={"Content-Type": "application/json"},
-            )
-            resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
-
-            # Strip accidental markdown fences
-            raw = re.sub(r"^```[a-z]*\n?|```$", "", raw, flags=re.MULTILINE).strip()
-
-            parsed = json.loads(raw)
-            score  = int(parsed["score"])
-            score  = max(0, min(100, score))   # clamp to [0, 100]
-            reason = parsed.get("reason", "")
-            log(f"    🤖 LLM score={score} | {reason}")
-            return score >= SIMILARITY_THRESHOLD, score
-
-        except requests.exceptions.Timeout:
-            last_error = f"LLM timeout (attempt {attempt}/{LLM_MAX_RETRIES})"
-            log(f"    ⚠ {last_error}")
-        except requests.exceptions.RequestException as e:
-            last_error = f"LLM request error: {e} (attempt {attempt}/{LLM_MAX_RETRIES})"
-            log(f"    ⚠ {last_error}")
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
-            last_error = f"LLM bad response: {e} (attempt {attempt}/{LLM_MAX_RETRIES})"
-            log(f"    ⚠ {last_error}")
-
-        if attempt < LLM_MAX_RETRIES:
-            time.sleep(LLM_RETRY_DELAY)
-
-    log(f"    ❌ is_similar() failed after {LLM_MAX_RETRIES} attempts — defaulting to no-match")
-    return False, 0
+    return score >= SIMILARITY_THRESHOLD, score
 
 
 def extract_social_links(text: str) -> dict:
