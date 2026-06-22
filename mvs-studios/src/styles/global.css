@@ -19,6 +19,15 @@
   font-display: swap;
 }
 
+/* Also register under the explicit family name used by the Video components */
+@font-face {
+  font-family: 'Mollen Regular';
+  src: url('/fonts/Mollen Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* Brand palette (sourced directly from the SVG exports) */
   --color-bg-deep: #180828;       /* darkest purple, gradient start */
