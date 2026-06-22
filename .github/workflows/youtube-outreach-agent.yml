@@ -24,25 +24,23 @@ jobs:
             requests \
             playwright \
             googleapis-common-protos \
-            rapidfuzz \
             transformers \
             accelerate \
             torch
           playwright install chromium
 
-      # TEMPORARILY DISABLED FOR TESTING — re-enable when not testing Screener in isolation
-      # - name: Run YouTube Scraper (5 min limit)
-      #   env:
-      #     YT_API_KEY_1:   ${{ secrets.YT_API_KEY_1 }}
-      #     YT_API_KEY_2:   ${{ secrets.YT_API_KEY_2 }}
-      #     YT_API_KEY_3:   ${{ secrets.YT_API_KEY_3 }}
-      #     NOTION_KEY:     ${{ secrets.NOTION_KEY }}
-      #     GH_PAT:         ${{ secrets.GH_PAT }}
-      #     SOURCE_DB_ID:   ${{ secrets.SOURCE_DB_ID }}
-      #     OUTREACH_DB_ID: ${{ secrets.OUTREACH_DB_ID }}
-      #   run: |
-      #     source ~/scripts-env/bin/activate
-      #     timeout 300 python "Outreach/Scrapers/YouTube/YouTube Scraper.py" || true
+      - name: Run YouTube Scraper (runs to completion)
+        env:
+          YT_API_KEY_1:   ${{ secrets.YT_API_KEY_1 }}
+          YT_API_KEY_2:   ${{ secrets.YT_API_KEY_2 }}
+          YT_API_KEY_3:   ${{ secrets.YT_API_KEY_3 }}
+          NOTION_KEY:     ${{ secrets.NOTION_KEY }}
+          GH_PAT:         ${{ secrets.GH_PAT }}
+          SOURCE_DB_ID:   ${{ secrets.SOURCE_DB_ID }}
+          OUTREACH_DB_ID: ${{ secrets.OUTREACH_DB_ID }}
+        run: |
+          source ~/scripts-env/bin/activate
+          python "Outreach/Scrapers/YouTube/YouTube Scraper.py"
 
       - name: Run YouTube Screener (runs to completion)
         env:
