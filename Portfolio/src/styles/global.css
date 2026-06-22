@@ -13,7 +13,7 @@
 
 @font-face {
   font-family: 'Mollen';
-  src: url('/fonts/Mollen-Regular.otf') format('opentype');
+  src: url('/fonts/Mollen%20Regular.otf') format('opentype');
   font-weight: 100 600;
   font-style: normal;
   font-display: swap;
@@ -22,7 +22,7 @@
 /* Also register under the explicit family name used by the Video components */
 @font-face {
   font-family: 'Mollen Regular';
-  src: url('/fonts/Mollen-Regular.otf') format('opentype');
+  src: url('/fonts/Mollen%20Regular.otf') format('opentype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
