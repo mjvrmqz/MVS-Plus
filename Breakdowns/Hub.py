@@ -5,7 +5,8 @@ MVS Studios · Hub
 Unified web app combining Upload Frame, Upload Clip, and Upload Lesson.
 Run locally: python Hub.py  (opens at http://localhost:5000)
 
-Env vars — put in a .env file at the repo root (MVS-Plus/.env):
+Env vars — put in a .env file at the MVS-Plus top level (MVS-Plus/.env),
+NOT inside Breakdowns/:
   NOTION_KEY, FRAMES_DB_ID, CLIPS_DB_ID, LESSONS_DB_ID
 """
 
@@ -34,9 +35,17 @@ try:
 except ImportError:
     pip("python-dotenv"); from dotenv import load_dotenv
 
-# Load .env from repo root (MVS-Plus/.env), fallback to Breakdowns/.env
-_here = Path(__file__).parent
-load_dotenv(dotenv_path=_here.parent / ".env") or load_dotenv(dotenv_path=_here / ".env")
+# Load .env strictly from the MVS-Plus repo root (one level up from this file,
+# i.e. Breakdowns/Hub.py -> MVS-Plus/.env). No fallback to Breakdowns/.env.
+_repo_root = Path(__file__).resolve().parent.parent
+_env_path  = _repo_root / ".env"
+if not _env_path.is_file():
+    sys.exit(
+        f"\n[Hub.py] No .env found at {_env_path}\n"
+        f"          Create it at the MVS-Plus top level (next to .env.example),\n"
+        f"          not inside Breakdowns/.\n"
+    )
+load_dotenv(dotenv_path=_env_path)
 
 # ── config ─────────────────────────────────────────────────────────────────────
 NOTION_KEY       = os.environ.get("NOTION_KEY", "")
