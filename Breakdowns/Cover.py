@@ -4,8 +4,8 @@ notion_cover_collage.py
 
 Reads the N most recent pages from a Notion database (FRAMES_DB_ID),
 grabs the images found in each page's content blocks, composites them
-into a moody, dark, tilted/blurred collage, and sets the result as
-that page's cover image.
+into a moody, dark, tilted/blurred PNG collage, uploads the PNG directly
+to Notion via the File Upload API, and sets it as that page's cover.
 
 Env vars required:
   NOTION_KEY     - Notion integration token
@@ -14,9 +14,6 @@ Env vars required:
 Optional env vars:
   PAGE_LIMIT          - how many recent pages to process (default 20)
   COLLAGE_OUTPUT_DIR  - where to save generated collage images (default ./collages)
-  IMGUR_CLIENT_ID     - if set, uploads collage to Imgur and uses that URL as cover
-                         (Notion page covers must be external URLs or Notion-hosted
-                         files, so we need somewhere public to host the image)
 
 Usage:
   python notion_cover_collage.py
@@ -67,7 +64,6 @@ NOTION_KEY = os.environ.get("NOTION_KEY")
 FRAMES_DB_ID = os.environ.get("FRAMES_DB_ID")
 PAGE_LIMIT = int(os.environ.get("PAGE_LIMIT", "20"))
 OUTPUT_DIR = os.environ.get("COLLAGE_OUTPUT_DIR", "./collages")
-IMGUR_CLIENT_ID = os.environ.get("IMGUR_CLIENT_ID")
 
 NOTION_VERSION = "2022-06-28"
 NOTION_API_BASE = "https://api.notion.com/v1"
@@ -269,25 +265,54 @@ def build_collage(image_list, canvas_w=CANVAS_W, canvas_h=CANVAS_H):
     return final_rgb
 
 
-def upload_to_imgur(image_path):
-    """Upload the collage to Imgur (anonymous) and return the public URL."""
-    if not IMGUR_CLIENT_ID:
-        return None
-    url = "https://api.imgur.com/3/image"
-    headers = {"Authorization": f"Client-ID {IMGUR_CLIENT_ID}"}
+def upload_to_notion(image_path):
+    """
+    Upload a local image file directly to Notion using Notion's File Upload API,
+    and return a file_upload id that can be used as a page cover.
+
+    Flow:
+      1. POST /v1/file_uploads to create an upload object
+      2. POST /v1/file_uploads/{id}/send with the file bytes (multipart)
+      3. Use the returned file_upload id when setting the page cover
+    """
+    filename = os.path.basename(image_path)
+
+    create_url = f"{NOTION_API_BASE}/file_uploads"
+    create_resp = requests.post(
+        create_url,
+        headers={
+            "Authorization": f"Bearer {NOTION_KEY}",
+            "Notion-Version": NOTION_VERSION,
+            "Content-Type": "application/json",
+        },
+        json={"filename": filename},
+    )
+    create_resp.raise_for_status()
+    upload_obj = create_resp.json()
+    file_upload_id = upload_obj["id"]
+    send_url = upload_obj["upload_url"]
+
     with open(image_path, "rb") as f:
-        resp = requests.post(url, headers=headers, files={"image": f})
-    resp.raise_for_status()
-    data = resp.json()
-    return data["data"]["link"]
+        files = {"file": (filename, f, "image/png")}
+        send_resp = requests.post(
+            send_url,
+            headers={
+                "Authorization": f"Bearer {NOTION_KEY}",
+                "Notion-Version": NOTION_VERSION,
+            },
+            files=files,
+        )
+    send_resp.raise_for_status()
+
+    return file_upload_id
 
 
-def set_page_cover(page_id, image_url):
+def set_page_cover_from_upload(page_id, file_upload_id):
     url = f"{NOTION_API_BASE}/pages/{page_id}"
     payload = {
         "cover": {
-            "type": "external",
-            "external": {"url": image_url},
+            "type": "file_upload",
+            "file_upload": {"id": file_upload_id},
         }
     }
     resp = requests.patch(url, headers=HEADERS, json=payload)
@@ -340,29 +365,19 @@ def main():
         collage = build_collage(images)
 
         safe_name = "".join(c if c.isalnum() else "_" for c in title)[:50]
-        out_path = os.path.join(OUTPUT_DIR, f"{safe_name}_{page_id}.jpg")
-        collage.save(out_path, "JPEG", quality=90)
+        out_path = os.path.join(OUTPUT_DIR, f"{safe_name}_{page_id}.png")
+        collage.save(out_path, "PNG")
         print(f"  Saved collage to {out_path}")
 
-        cover_url = None
-        if IMGUR_CLIENT_ID:
-            try:
-                cover_url = upload_to_imgur(out_path)
-                print(f"  Uploaded to Imgur: {cover_url}")
-            except Exception as e:
-                print(f"  [warn] Imgur upload failed: {e}")
+        try:
+            file_upload_id = upload_to_notion(out_path)
+            print(f"  Uploaded to Notion (file_upload id: {file_upload_id})")
+            set_page_cover_from_upload(page_id, file_upload_id)
+            print("  Page cover updated.")
+        except Exception as e:
+            print(f"  [warn] failed to upload/set cover: {e}")
 
-        if cover_url:
-            try:
-                set_page_cover(page_id, cover_url)
-                print("  Page cover updated.")
-            except Exception as e:
-                print(f"  [warn] failed to set page cover: {e}")
-        else:
-            print("  [info] No public URL available (set IMGUR_CLIENT_ID to "
-                  "auto-upload), collage saved locally only.")
-
-        time.sleep(1.5)
+        time.sleep(1)
 
 
 if __name__ == "__main__":
