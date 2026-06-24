@@ -6,7 +6,7 @@ Unified web app combining Upload Frame, Upload Clip, and Upload Lesson.
 Run locally: python Hub.py  (opens at http://localhost:5000)
 
 Env vars — put in a .env file at the repo root (MVS-Plus/.env):
-  NOTION_KEY, INSPIRATION_DB_ID, CLIPS_DB_ID, LESSONS_DB_ID
+  NOTION_KEY, FRAMES_DB_ID, CLIPS_DB_ID, LESSONS_DB_ID
 """
 
 import subprocess, sys, os, io, threading, requests, json, re
@@ -40,7 +40,7 @@ load_dotenv(dotenv_path=_here.parent / ".env") or load_dotenv(dotenv_path=_here 
 
 # ── config ─────────────────────────────────────────────────────────────────────
 NOTION_KEY       = os.environ.get("NOTION_KEY", "")
-INSPIRATION_DB   = os.environ.get("INSPIRATION_DB_ID", "")
+FRAMES_DB   = os.environ.get("FRAMES_DB_ID", "")
 CLIPS_DB         = os.environ.get("CLIPS_DB_ID", "")
 LESSONS_DB       = os.environ.get("LESSONS_DB_ID", "")
 IMGUR_CLIENT     = "546c25a59c58ad7"
@@ -139,10 +139,10 @@ def handle_frame(img_bytes):
     orig_url    = upload_imgur_bytes(img_bytes)
     cover_bytes = make_blurred_cover(img_bytes)
     cover_url   = upload_imgur_bytes(cover_bytes)
-    label       = f"Inspiration {get_next_number(INSPIRATION_DB, 'Inspiration ')}"
-    prop        = get_title_prop(INSPIRATION_DB)
+    label       = f"Inspiration {get_next_number(FRAMES_DB, 'Inspiration ')}"
+    prop        = get_title_prop(FRAMES_DB)
     payload     = {
-        "parent":     {"database_id": INSPIRATION_DB},
+        "parent":     {"database_id": FRAMES_DB},
         "cover":      {"type": "external", "external": {"url": cover_url}},
         "properties": {prop: {"title": [{"text": {"content": label}}]}},
         "children":   [{"object": "block", "type": "image",
