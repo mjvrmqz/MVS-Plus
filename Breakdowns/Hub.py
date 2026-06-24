@@ -505,9 +505,8 @@ HTML = r"""<!DOCTYPE html>
     --green:  #2ecc71;
     --font:   'Helvetica Neue', Helvetica, Arial, sans-serif;
     --hub-card:     #101010;
-    --hub-tray:     #050505;
-    --hub-ext-from: #530000;
-    --hub-ext-to:   #0e0707;
+    --hub-tray:     #000000;
+    --hub-ext:      #2D0000;
   }
   html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); user-select: none; }
   input, textarea { user-select: text; }
@@ -543,32 +542,35 @@ HTML = r"""<!DOCTYPE html>
   .panel { display: none; max-width: 560px; margin: 0 auto; padding: 28px 20px 60px; }
   .panel.active { display: block; }
 
+  .panel.hub-fill {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    height: calc(100vh - 41px);
+  }
+
   .drop-zone {
-    border: 1px solid #1c1c1c;
-    border-radius: 10px;
+    width: 100%;
+    height: 100%;
     background: var(--hub-card);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 260px;
     cursor: default;
-    transition: border-color .15s, background .15s;
+    transition: background .15s;
   }
-  .drop-zone.hover  { border-color: var(--red); background: #160a0a; }
-  .drop-zone.done   { border-color: var(--green); background: #0c1a0f; }
-  .drop-zone.error  { border-color: #7a2020; background: #1a0c0c; }
-  .drop-icon { margin-bottom: 18px; }
-  .drop-label { font-size: 14px; color: var(--fg); margin-bottom: 7px; font-weight: 500; }
+  .drop-zone.hover  { background: #1a0808; }
+  .drop-zone.done   { background: #081a0c; }
+  .drop-zone.error  { background: #1a0c0c; }
+  .drop-icon { margin-bottom: 20px; }
+  .drop-label { font-size: 15px; color: var(--fg); margin-bottom: 8px; font-weight: 500; }
   .drop-label.active-drag { color: var(--red); }
   .drop-ext {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .06em;
-    background: linear-gradient(90deg, var(--hub-ext-from), var(--hub-ext-to));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--hub-ext);
   }
   .drop-result { text-align: center; }
   .drop-result .sym { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
@@ -677,10 +679,10 @@ HTML = r"""<!DOCTYPE html>
   <button class="tab" data-panel="lesson">Lesson</button>
 </nav>
 
-<div class="panel active" id="panel-frame">
+<div class="panel active hub-fill" id="panel-frame">
   <div class="drop-zone" id="frame-drop">
-    <svg class="drop-icon" width="48" height="36" viewBox="0 0 48 36" fill="none">
-      <path d="M10 6 V20 a6 6 0 0 0 6 6 H32 a6 6 0 0 0 6-6 V6" stroke="#1c1c1c" stroke-width="7" stroke-linecap="round"/>
+    <svg class="drop-icon" width="56" height="42" viewBox="0 0 56 42" fill="none">
+      <path d="M12 4 V22 a10 10 0 0 0 10 10 H34 a10 10 0 0 0 10-10 V4" stroke="#000" stroke-width="11" stroke-linecap="round"/>
     </svg>
     <div class="drop-label" id="frame-label">Drop Frame Here</div>
     <div class="drop-ext">JPG · PNG · WEBP</div>
@@ -691,10 +693,10 @@ HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<div class="panel" id="panel-clip">
+<div class="panel hub-fill" id="panel-clip">
   <div class="drop-zone" id="clip-drop">
-    <svg class="drop-icon" width="48" height="36" viewBox="0 0 48 36" fill="none">
-      <path d="M10 6 V20 a6 6 0 0 0 6 6 H32 a6 6 0 0 0 6-6 V6" stroke="#1c1c1c" stroke-width="7" stroke-linecap="round"/>
+    <svg class="drop-icon" width="56" height="42" viewBox="0 0 56 42" fill="none">
+      <path d="M12 4 V22 a10 10 0 0 0 10 10 H34 a10 10 0 0 0 10-10 V4" stroke="#000" stroke-width="11" stroke-linecap="round"/>
     </svg>
     <div class="drop-label" id="clip-label">Drop Clip Here</div>
     <div class="drop-ext">MP4 · MOV · MKV · AVI · M4V · WEBM</div>
