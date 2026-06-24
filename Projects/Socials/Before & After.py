@@ -37,9 +37,53 @@ Optional flags:
 """
 
 import argparse
+import ctypes
+import ctypes.util
+import os
+import platform
 import subprocess
 import sys
 from pathlib import Path
+
+
+def _fix_macos_cairo_path():
+    """On macOS, cairosvg needs the native libcairo library, which is usually
+    installed via Homebrew but isn't on the dynamic linker's search path by
+    default — especially when running a non-Homebrew Python (conda, etc).
+    This finds it automatically so the user never has to set
+    DYLD_LIBRARY_PATH or fuss with their shell config by hand."""
+    if platform.system() != "Darwin":
+        return
+    if ctypes.util.find_library("cairo"):
+        return  # already discoverable, nothing to do
+
+    candidate_dirs = [
+        "/opt/homebrew/lib",       # Apple Silicon Homebrew
+        "/usr/local/lib",          # Intel Homebrew
+        "/opt/local/lib",          # MacPorts
+    ]
+    candidate_names = ["libcairo.2.dylib", "libcairo.dylib"]
+
+    for d in candidate_dirs:
+        for name in candidate_names:
+            full_path = os.path.join(d, name)
+            if os.path.exists(full_path):
+                # Make it loadable for this process right now...
+                try:
+                    ctypes.CDLL(full_path)
+                except OSError:
+                    pass
+                # ...and for any child processes / re-exec scenarios.
+                os.environ["DYLD_LIBRARY_PATH"] = (
+                    d + ":" + os.environ.get("DYLD_LIBRARY_PATH", "")
+                )
+                os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = (
+                    d + ":" + os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+                )
+                return
+
+
+_fix_macos_cairo_path()
 
 try:
     import numpy as np
