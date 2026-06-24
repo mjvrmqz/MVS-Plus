@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-MVS Studios · Hub
-=================
-Unified web app combining Upload Frame, Upload Clip, and Upload Lesson.
-Run locally: python Hub.py  (opens at http://localhost:5000)
+MVS Studios · Hub (Desktop)
+============================
+Native desktop window (Mac + Windows) combining Upload Frame, Upload Clip,
+and Upload Lesson. No browser, no localhost server — runs as a real app window.
+
+Run: python Hub.py
 
 Env vars — put in a .env file at the MVS-Plus top level (MVS-Plus/.env),
 NOT inside Breakdowns/:
@@ -13,7 +15,6 @@ NOT inside Breakdowns/:
 import subprocess, sys, os, io, threading, requests, json, re
 import random, tempfile, base64, time, uuid
 from pathlib import Path
-from flask import Flask, request, jsonify, Response
 
 # ── auto-install ───────────────────────────────────────────────────────────────
 def pip(*pkgs):
@@ -35,6 +36,11 @@ try:
 except ImportError:
     pip("python-dotenv"); from dotenv import load_dotenv
 
+try:
+    import webview
+except ImportError:
+    pip("pywebview"); import webview
+
 # Load .env strictly from the MVS-Plus repo root (one level up from this file,
 # i.e. Breakdowns/Hub.py -> MVS-Plus/.env). No fallback to Breakdowns/.env.
 _repo_root = Path(__file__).resolve().parent.parent
@@ -48,11 +54,11 @@ if not _env_path.is_file():
 load_dotenv(dotenv_path=_env_path)
 
 # ── config ─────────────────────────────────────────────────────────────────────
-NOTION_KEY       = os.environ.get("NOTION_KEY", "")
-FRAMES_DB   = os.environ.get("FRAMES_DB_ID", "")
-CLIPS_DB         = os.environ.get("CLIPS_DB_ID", "")
-LESSONS_DB       = os.environ.get("LESSONS_DB_ID", "")
-IMGUR_CLIENT     = "546c25a59c58ad7"
+NOTION_KEY   = os.environ.get("NOTION_KEY", "")
+FRAMES_DB    = os.environ.get("FRAMES_DB_ID", "")
+CLIPS_DB     = os.environ.get("CLIPS_DB_ID", "")
+LESSONS_DB   = os.environ.get("LESSONS_DB_ID", "")
+IMGUR_CLIENT = "546c25a59c58ad7"
 
 NOTION_HDR = {
     "Authorization":  f"Bearer {NOTION_KEY}",
@@ -408,10 +414,75 @@ def run_lesson_pipeline(url, info, avatar_url, category, clips, status):
 
     return vid_title
 
-# ── Flask app ──────────────────────────────────────────────────────────────────
+# ── pywebview API bridge ───────────────────────────────────────────────────────
+# Each method exposed here is callable from JS as window.pywebview.api.<name>(...)
 
-app   = Flask(__name__)
-_jobs = {}
+class Api:
+    def __init__(self):
+        self._window = None
+
+    def _set_window(self, window):
+        self._window = window
+
+    def _push(self, js):
+        """Run JS in the window from a background thread."""
+        if self._window:
+            self._window.evaluate_js(js)
+
+    # -- Frame --------------------------------------------------------------
+    def upload_frame(self, b64data, filename):
+        try:
+            raw = base64.b64decode(b64data.split(",")[-1])
+            label = handle_frame(raw)
+            return {"ok": True, "label": label}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:200]}
+
+    # -- Clip -----------------------------------------------------------
+    def upload_clip(self, b64data, filename):
+        try:
+            raw = base64.b64decode(b64data.split(",")[-1])
+            label = handle_clip(raw, filename or "clip.mp4")
+            return {"ok": True, "label": label}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:200]}
+
+    # -- Lesson (async w/ progress pushed back into the window) -------------
+    def upload_lesson(self, payload):
+        url      = payload["url"]
+        category = payload["category"]
+        try:
+            clips = []
+            for i, c in enumerate(payload["clips"], 1):
+                s = parse_ts(c["start"])
+                e = parse_ts(c["end"])
+                if e <= s:
+                    return {"ok": False, "error": f"Clip {i}: end must be after start"}
+                clips.append({"start": s, "end": e, "notes": c.get("notes", ""), "name": c.get("name", "")})
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:200]}
+
+        job_id = str(uuid.uuid4())
+
+        def status(msg, pct=None):
+            safe_msg = json.dumps(msg)
+            self._push(f"window.lessonProgress('{job_id}', {safe_msg}, {pct or 0})")
+
+        def worker():
+            try:
+                status("Fetching video info\u2026", 0.04)
+                info = get_video_info(url)
+                status("Fetching channel avatar\u2026", 0.08)
+                ch_url = info.get("channel_url") or info.get("uploader_url", "")
+                avatar = get_channel_avatar(ch_url) if ch_url else None
+                title  = run_lesson_pipeline(url, info, avatar, category, clips, status)
+                self._push(f"window.lessonDone('{job_id}', {json.dumps(title)})")
+            except Exception as e:
+                self._push(f"window.lessonError('{job_id}', {json.dumps(str(e)[:200])})")
+
+        threading.Thread(target=worker, daemon=True).start()
+        return {"ok": True, "job_id": job_id}
+
 
 HTML = r"""<!DOCTYPE html>
 <html lang="en">
@@ -434,7 +505,8 @@ HTML = r"""<!DOCTYPE html>
     --green:  #2ecc71;
     --font:   'Helvetica Neue', Helvetica, Arial, sans-serif;
   }
-  html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); }
+  html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); user-select: none; }
+  input, textarea { user-select: text; }
 
   header {
     background: var(--bg2);
@@ -447,6 +519,7 @@ HTML = r"""<!DOCTYPE html>
     position: sticky;
     top: 0;
     z-index: 10;
+    -webkit-app-region: drag;
   }
   .logo { display: flex; align-items: center; gap: 10px; }
   .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
@@ -680,7 +753,22 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
-function makeDropZone(zoneId, labelId, progId, progLabelId, progFillId, acceptExts, uploadRoute) {
+// Wait until pywebview's JS bridge is ready before wiring anything that calls it.
+function whenApiReady(cb) {
+  if (window.pywebview && window.pywebview.api) { cb(); }
+  else { window.addEventListener('pywebviewready', cb); }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = () => resolve(r.result); // data:...;base64,XXXX
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function makeDropZone(zoneId, labelId, progId, progLabelId, progFillId, acceptExts, apiMethodName) {
   const zone      = document.getElementById(zoneId);
   const label     = document.getElementById(labelId);
   const prog      = document.getElementById(progId);
@@ -724,6 +812,24 @@ function makeDropZone(zoneId, labelId, progId, progLabelId, progFillId, acceptEx
     busy = false;
   }
 
+  async function handleFile(file) {
+    if (busy) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!acceptExts.includes(ext)) { setResult('error', 'Unsupported: .' + ext); return; }
+    busy = true;
+    setProgress('Encoding\u2026', 0.05);
+    try {
+      const b64 = await fileToBase64(file);
+      setProgress('Uploading\u2026', 0.2);
+      const res = await window.pywebview.api[apiMethodName](b64, file.name);
+      if (res.ok) setResult('done', '\u2713  ' + res.label + ' added to Notion!');
+      else setResult('error', res.error || 'Unknown error');
+    } catch (err) {
+      setResult('error', String(err).slice(0, 160));
+      busy = false;
+    }
+  }
+
   zone.addEventListener('dragover', e => {
     e.preventDefault();
     if (!busy) { zone.classList.add('hover'); label.className = 'drop-label active-drag'; label.textContent = 'Release to add'; }
@@ -731,32 +837,32 @@ function makeDropZone(zoneId, labelId, progId, progLabelId, progFillId, acceptEx
   zone.addEventListener('dragleave', () => {
     if (!busy) { zone.classList.remove('hover'); label.className = 'drop-label'; label.textContent = defaultLabel; }
   });
-  zone.addEventListener('drop', async e => {
+  zone.addEventListener('drop', e => {
     e.preventDefault();
-    if (busy) return;
     zone.classList.remove('hover');
     label.className = 'drop-label';
     const file = e.dataTransfer.files[0];
-    if (!file) return;
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!acceptExts.includes(ext)) { setResult('error', 'Unsupported: .' + ext); return; }
-    busy = true;
-    setProgress('Uploading\u2026', 0.1);
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      const res = await fetch(uploadRoute, { method: 'POST', body: fd });
-      const j   = await res.json();
-      if (j.ok) setResult('done', '\u2713  ' + j.label + ' added to Notion!');
-      else setResult('error', j.error || 'Unknown error');
-    } catch(err) { setResult('error', err.message); busy = false; }
+    if (file) handleFile(file);
+  });
+
+  // Also allow click-to-browse, since native windows don't always get OS drag events
+  // forwarded the same way browsers do.
+  zone.addEventListener('click', () => {
+    if (busy) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = acceptExts.map(e => '.' + e).join(',');
+    input.onchange = () => { if (input.files[0]) handleFile(input.files[0]); };
+    input.click();
   });
 }
 
-makeDropZone('frame-drop','frame-label','frame-prog','frame-prog-label','frame-prog-fill',
-             ['jpg','jpeg','png','webp'], '/upload/frame');
-makeDropZone('clip-drop','clip-label','clip-prog','clip-prog-label','clip-prog-fill',
-             ['mp4','mov','avi','mkv','m4v','webm','mxf','wmv'], '/upload/clip');
+whenApiReady(() => {
+  makeDropZone('frame-drop','frame-label','frame-prog','frame-prog-label','frame-prog-fill',
+               ['jpg','jpeg','png','webp'], 'upload_frame');
+  makeDropZone('clip-drop','clip-label','clip-prog','clip-prog-label','clip-prog-fill',
+               ['mp4','mov','avi','mkv','m4v','webm','mxf','wmv'], 'upload_clip');
+});
 
 let selectedCat = '';
 document.querySelectorAll('.cat-btn').forEach(btn => {
@@ -806,6 +912,24 @@ function setLessonStatus(msg, pct) {
   if (pct !== undefined) document.getElementById('lesson-prog-fill').style.width = (pct * 100) + '%';
 }
 
+// Called by Python (via evaluate_js) to push progress for a running lesson job.
+window.lessonProgress = function(jobId, msg, pct) {
+  if (jobId !== window.currentLessonJob) return;
+  setLessonStatus(msg, pct);
+};
+window.lessonDone = function(jobId, title) {
+  if (jobId !== window.currentLessonJob) return;
+  setLessonStatus('\u2713  Added "' + title + '" to Notion!', 1.0);
+  const btn = document.getElementById('submit-btn');
+  btn.textContent = '\u2713 Done'; btn.classList.add('done');
+};
+window.lessonError = function(jobId, msg) {
+  if (jobId !== window.currentLessonJob) return;
+  setLessonStatus('\u2715  ' + msg, 0);
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = false; btn.textContent = 'Push to Notion \u2192'; btn.classList.remove('done');
+};
+
 document.getElementById('submit-btn').addEventListener('click', async () => {
   const url = document.getElementById('yt-url').value.trim();
   if (!url) { setLessonStatus('\u26a0  Enter a YouTube URL'); return; }
@@ -824,103 +948,33 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
   const btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = 'Working\u2026';
   setLessonStatus('Starting\u2026', 0.02);
-  const res = await fetch('/upload/lesson', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({url, category: selectedCat, clips}) });
-  const {job_id} = await res.json();
-  const es = new EventSource('/progress/' + job_id);
-  es.onmessage = ev => {
-    const d = JSON.parse(ev.data);
-    if (d.type === 'progress') { setLessonStatus(d.msg, d.pct); }
-    else if (d.type === 'done') { setLessonStatus('\u2713  Added "' + d.title + '" to Notion!', 1.0); btn.textContent = '\u2713 Done'; btn.classList.add('done'); es.close(); }
-    else if (d.type === 'error') { setLessonStatus('\u2715  ' + d.msg, 0); btn.disabled = false; btn.textContent = 'Push to Notion \u2192'; btn.classList.remove('done'); es.close(); }
-  };
+  const res = await window.pywebview.api.upload_lesson({url, category: selectedCat, clips});
+  if (!res.ok) {
+    setLessonStatus('\u2715  ' + res.error, 0);
+    btn.disabled = false; btn.textContent = 'Push to Notion \u2192';
+    return;
+  }
+  window.currentLessonJob = res.job_id;
 });
 </script>
 </body>
 </html>"""
 
 
-@app.route("/")
-def index():
-    return HTML
-
-
-@app.route("/upload/frame", methods=["POST"])
-def upload_frame():
-    try:
-        f = request.files.get("file")
-        if not f: return jsonify(ok=False, error="No file")
-        label = handle_frame(f.read())
-        return jsonify(ok=True, label=label)
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)[:120])
-
-
-@app.route("/upload/clip", methods=["POST"])
-def upload_clip():
-    try:
-        f = request.files.get("file")
-        if not f: return jsonify(ok=False, error="No file")
-        label = handle_clip(f.read(), f.filename or "clip.mp4")
-        return jsonify(ok=True, label=label)
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)[:120])
-
-
-@app.route("/upload/lesson", methods=["POST"])
-def upload_lesson():
-    data     = request.get_json(force=True)
-    url      = data["url"]
-    category = data["category"]
-    clips    = []
-    for i, c in enumerate(data["clips"], 1):
-        s = parse_ts(c["start"])
-        e = parse_ts(c["end"])
-        if e <= s:
-            return jsonify(error=f"Clip {i}: end must be after start"), 400
-        clips.append({"start": s, "end": e, "notes": c.get("notes", ""), "name": c.get("name", "")})
-    job_id = str(uuid.uuid4())
-    _jobs[job_id] = []
-
-    def worker():
-        q = _jobs[job_id]
-        def status(msg, pct=None):
-            q.append(json.dumps({"type": "progress", "msg": msg, "pct": pct or 0}))
-        try:
-            status("Fetching video info\u2026", 0.04)
-            info = get_video_info(url)
-            status("Fetching channel avatar\u2026", 0.08)
-            ch_url = info.get("channel_url") or info.get("uploader_url", "")
-            avatar = get_channel_avatar(ch_url) if ch_url else None
-            title  = run_lesson_pipeline(url, info, avatar, category, clips, status)
-            q.append(json.dumps({"type": "done", "title": title}))
-        except Exception as e:
-            q.append(json.dumps({"type": "error", "msg": str(e)[:200]}))
-
-    threading.Thread(target=worker, daemon=True).start()
-    return jsonify(job_id=job_id)
-
-
-@app.route("/progress/<job_id>")
-def progress(job_id):
-    def stream():
-        sent = 0
-        while True:
-            q = _jobs.get(job_id, [])
-            while sent < len(q):
-                yield f"data: {q[sent]}\n\n"
-                sent += 1
-                msg = json.loads(q[sent - 1])
-                if msg["type"] in ("done", "error"):
-                    _jobs.pop(job_id, None)
-                    return
-            time.sleep(0.5)
-    return Response(stream(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+def main():
+    api = Api()
+    window = webview.create_window(
+        "MVS Studios · Hub",
+        html=HTML,
+        js_api=api,
+        width=640,
+        height=760,
+        min_size=(480, 560),
+        background_color="#0a0a0a",
+    )
+    api._set_window(window)
+    webview.start()
 
 
 if __name__ == "__main__":
-    import webbrowser
-    port = int(os.environ.get("PORT", 5000))
-    print(f"\n  MVS Studios Hub → http://localhost:{port}\n")
-    threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{port}")).start()
-    app.run(host="127.0.0.1", port=port, threaded=True)
+    main()
