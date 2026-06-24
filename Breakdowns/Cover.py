@@ -29,6 +29,39 @@ import random
 import requests
 from PIL import Image, ImageFilter, ImageEnhance, ImageOps
 
+
+def load_env_file():
+    """
+    Walk upward from this script's location looking for a .env file
+    (e.g. at the top level of the MVS-Plus repo) and load any vars
+    from it into os.environ if they aren't already set.
+    """
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    while True:
+        candidate = os.path.join(current_dir, ".env")
+        if os.path.isfile(candidate):
+            with open(candidate, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+            return candidate
+
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir == current_dir:
+            # reached filesystem root without finding a .env
+            return None
+        current_dir = parent_dir
+
+
+load_env_file()
+
 NOTION_KEY = os.environ.get("NOTION_KEY")
 FRAMES_DB_ID = os.environ.get("FRAMES_DB_ID")
 PAGE_LIMIT = int(os.environ.get("PAGE_LIMIT", "20"))
