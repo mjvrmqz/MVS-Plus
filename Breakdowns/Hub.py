@@ -484,6 +484,22 @@ class Api:
         return {"ok": True, "job_id": job_id}
 
 
+# ── drop-zone icon (Download Icon.png at the MVS-Plus repo root) ───────────────
+# Loaded once at startup and inlined as a data URI so the pywebview HTML string
+# stays fully self-contained (no relative file paths at runtime).
+def _load_download_icon_data_uri():
+    icon_path = _repo_root / "Download Icon.png"
+    try:
+        with open(icon_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        return f"data:image/png;base64,{b64}"
+    except FileNotFoundError:
+        print(f"[Hub.py] Warning: '{icon_path}' not found — drop-zone icon will be blank.")
+        return ""
+
+DOWNLOAD_ICON_URI = _load_download_icon_data_uri()
+
+
 HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -563,7 +579,7 @@ HTML = r"""<!DOCTYPE html>
   .drop-zone.hover  { background: #1a0808; }
   .drop-zone.done   { background: #081a0c; }
   .drop-zone.error  { background: #1a0c0c; }
-  .drop-icon { margin-bottom: 20px; }
+  .drop-icon { width: 84px; height: auto; margin-bottom: 20px; display: block; }
   .drop-label { font-size: 15px; color: var(--fg); margin-bottom: 8px; font-weight: 500; }
   .drop-label.active-drag { color: var(--red); }
   .drop-ext {
@@ -681,9 +697,7 @@ HTML = r"""<!DOCTYPE html>
 
 <div class="panel active hub-fill" id="panel-frame">
   <div class="drop-zone" id="frame-drop">
-    <svg class="drop-icon" width="56" height="42" viewBox="0 0 56 42" fill="none">
-      <path d="M12 4 V22 a10 10 0 0 0 10 10 H34 a10 10 0 0 0 10-10 V4" stroke="#000" stroke-width="11" stroke-linecap="round"/>
-    </svg>
+    <img class="drop-icon" src="__DOWNLOAD_ICON__" alt="">
     <div class="drop-label" id="frame-label">Drop Frame Here</div>
     <div class="drop-ext">JPG · PNG · WEBP</div>
     <div class="prog-wrap" id="frame-prog">
@@ -695,9 +709,7 @@ HTML = r"""<!DOCTYPE html>
 
 <div class="panel hub-fill" id="panel-clip">
   <div class="drop-zone" id="clip-drop">
-    <svg class="drop-icon" width="56" height="42" viewBox="0 0 56 42" fill="none">
-      <path d="M12 4 V22 a10 10 0 0 0 10 10 H34 a10 10 0 0 0 10-10 V4" stroke="#000" stroke-width="11" stroke-linecap="round"/>
-    </svg>
+    <img class="drop-icon" src="__DOWNLOAD_ICON__" alt="">
     <div class="drop-label" id="clip-label">Drop Clip Here</div>
     <div class="drop-ext">MP4 · MOV · MKV · AVI · M4V · WEBM</div>
     <div class="prog-wrap" id="clip-prog">
@@ -947,6 +959,8 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
 </script>
 </body>
 </html>"""
+
+HTML = HTML.replace("__DOWNLOAD_ICON__", DOWNLOAD_ICON_URI)
 
 
 def main():
