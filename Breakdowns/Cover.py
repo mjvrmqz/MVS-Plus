@@ -26,6 +26,7 @@ import os
 import io
 import math
 import random
+import time
 import requests
 from PIL import Image, ImageFilter, ImageEnhance, ImageOps
 
@@ -133,14 +134,35 @@ def extract_image_urls_from_blocks(page_id):
     return image_urls
 
 
-def download_image(url):
-    try:
-        resp = requests.get(url, timeout=20)
-        resp.raise_for_status()
-        return Image.open(io.BytesIO(resp.content)).convert("RGBA")
-    except Exception as e:
-        print(f"  [warn] failed to download image: {e}")
-        return None
+DOWNLOAD_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    )
+}
+
+
+def download_image(url, max_retries=4):
+    backoff = 2
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = requests.get(url, headers=DOWNLOAD_HEADERS, timeout=20)
+            if resp.status_code == 429:
+                print(f"  [warn] 429 rate limited, retrying in {backoff}s "
+                      f"(attempt {attempt}/{max_retries})...")
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            resp.raise_for_status()
+            return Image.open(io.BytesIO(resp.content)).convert("RGBA")
+        except Exception as e:
+            if attempt == max_retries:
+                print(f"  [warn] failed to download image after {max_retries} attempts: {e}")
+                return None
+            time.sleep(backoff)
+            backoff *= 2
+    return None
 
 
 def make_tilted_layer(img, target_size, angle_range=(-25, 25)):
@@ -339,6 +361,8 @@ def main():
         else:
             print("  [info] No public URL available (set IMGUR_CLIENT_ID to "
                   "auto-upload), collage saved locally only.")
+
+        time.sleep(1.5)
 
 
 if __name__ == "__main__":
