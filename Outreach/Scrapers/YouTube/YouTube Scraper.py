@@ -38,7 +38,7 @@ API_KEYS = [k for k in [
 ] if k]
 
 NOTION_KEY   = os.environ.get("NOTION_KEY", "")
-SOURCE_DB_ID = os.environ.get("SOURCE_DB_ID", "")
+SCRAPER_DB_ID = os.environ.get("SCRAPER_DB_ID", "")
 
 GITHUB_TITLES_URL = (
     "https://raw.githubusercontent.com/mjvrmqz/MVS-Studios/main/"
@@ -193,7 +193,7 @@ def extract_social_links(text: str) -> dict:
 # ─────────────────────────────────────────────
 
 def notion_probe_db():
-    url  = f"https://api.notion.com/v1/databases/{SOURCE_DB_ID}"
+    url  = f"https://api.notion.com/v1/databases/{SCRAPER_DB_ID}"
     resp = requests.get(url, headers=notion_headers())
     data = resp.json()
     props = data.get("properties", {})
@@ -221,7 +221,7 @@ def notion_headers() -> dict:
 def notion_get_existing() -> tuple:
     existing_urls     = set()
     existing_channels = set()
-    url     = f"https://api.notion.com/v1/databases/{SOURCE_DB_ID}/query"
+    url     = f"https://api.notion.com/v1/databases/{SCRAPER_DB_ID}/query"
     payload = {"page_size": 100}
     while True:
         resp = requests.post(url, headers=notion_headers(), json=payload)
