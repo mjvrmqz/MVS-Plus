@@ -5,7 +5,7 @@ MVS Studios · Hub
 Unified web app combining Upload Frame, Upload Clip, and Upload Lesson.
 Run locally: python Hub.py  (opens at http://localhost:5000)
 
-Env vars (put in a .env file next to this script, or set them manually):
+Env vars — put in a .env file at the repo root (MVS-Plus/.env):
   NOTION_KEY, INSPIRATION_DB_ID, CLIPS_DB_ID, LESSONS_DB_ID
 """
 
@@ -34,8 +34,9 @@ try:
 except ImportError:
     pip("python-dotenv"); from dotenv import load_dotenv
 
-# Load .env file if present (safe no-op if missing)
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+# Load .env from repo root (MVS-Plus/.env), fallback to Breakdowns/.env
+_here = Path(__file__).parent
+load_dotenv(dotenv_path=_here.parent / ".env") or load_dotenv(dotenv_path=_here / ".env")
 
 # ── config ─────────────────────────────────────────────────────────────────────
 NOTION_KEY       = os.environ.get("NOTION_KEY", "")
@@ -912,6 +913,5 @@ if __name__ == "__main__":
     import webbrowser
     port = int(os.environ.get("PORT", 5000))
     print(f"\n  MVS Studios Hub → http://localhost:{port}\n")
-    # Open browser automatically after a short delay
     threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{port}")).start()
     app.run(host="127.0.0.1", port=port, threaded=True)
