@@ -3,9 +3,9 @@
 MVS Studios · Hub
 =================
 Unified web app combining Upload Frame, Upload Clip, and Upload Lesson.
-Run via GitHub Actions + Cloudflare Tunnel.
+Run locally: python Hub.py  (opens at http://localhost:5000)
 
-Env vars required:
+Env vars (put in a .env file next to this script, or set them manually):
   NOTION_KEY, INSPIRATION_DB_ID, CLIPS_DB_ID, LESSONS_DB_ID
 """
 
@@ -28,6 +28,14 @@ try:
     import yt_dlp
 except ImportError:
     pip("yt-dlp"); import yt_dlp
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    pip("python-dotenv"); from dotenv import load_dotenv
+
+# Load .env file if present (safe no-op if missing)
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 # ── config ─────────────────────────────────────────────────────────────────────
 NOTION_KEY       = os.environ.get("NOTION_KEY", "")
@@ -306,7 +314,7 @@ def run_lesson_pipeline(url, info, avatar_url, category, clips, status):
     duration  = float(info.get("duration") or 60)
     prop      = get_title_prop(LESSONS_DB)
 
-    status("Creating main page…", 0.10)
+    status("Creating main page\u2026", 0.10)
     main_body = {
         "parent": {"database_id": LESSONS_DB},
         "properties": {
@@ -319,13 +327,13 @@ def run_lesson_pipeline(url, info, avatar_url, category, clips, status):
     main    = n_post("/pages", main_body)
     main_id = main["id"]
 
-    status("Adding thumbnail…", 0.15)
+    status("Adding thumbnail\u2026", 0.15)
     n_patch(f"/blocks/{main_id}/children", {"children": [
         {"object": "block", "type": "image",
          "image": {"type": "external", "external": {"url": thumb_url}}}
     ]})
 
-    status("Creating Breakdown page…", 0.20)
+    status("Creating Breakdown page\u2026", 0.20)
     breakdown_body = {
         "parent":     {"page_id": main_id},
         "properties": {"title": {"title": [{"text": {"content": "Breakdown"}}]}},
@@ -336,27 +344,27 @@ def run_lesson_pipeline(url, info, avatar_url, category, clips, status):
     breakdown_id = breakdown["id"]
 
     with tempfile.TemporaryDirectory() as tmp:
-        status("Downloading video for GIF…", 0.25)
+        status("Downloading video for GIF\u2026", 0.25)
         video_path = download_full_low(url, tmp)
 
-        status("Generating GIF cover…", 0.35)
+        status("Generating GIF cover\u2026", 0.35)
         gif_data = make_gif(video_path, duration)
 
-        status("Uploading GIF…", 0.45)
+        status("Uploading GIF\u2026", 0.45)
         gif_url = upload_imgur_bytes(gif_data, "image/gif")
 
-        status("Setting Breakdown cover…", 0.50)
+        status("Setting Breakdown cover\u2026", 0.50)
         n_patch(f"/pages/{breakdown_id}", {"cover": {"type": "external", "external": {"url": gif_url}}})
 
-        status("Building Breakdown content…", 0.55)
+        status("Building Breakdown content\u2026", 0.55)
         n_patch(f"/blocks/{breakdown_id}/children", {"children": [
             {"object": "block", "type": "callout",
-             "callout": {"rich_text": [], "icon": {"type": "emoji", "emoji": "🎬"}, "color": "default",
+             "callout": {"rich_text": [], "icon": {"type": "emoji", "emoji": "\U0001f3ac"}, "color": "default",
                          "children": [{"object": "block", "type": "video",
                                        "video": {"type": "external", "external": {"url": url}}}]}}
         ]})
 
-        status("Creating Clips database…", 0.60)
+        status("Creating Clips database\u2026", 0.60)
         clips_db = n_post("/databases", {
             "parent":     {"page_id": breakdown_id},
             "is_inline":  True,
@@ -368,7 +376,7 @@ def run_lesson_pipeline(url, info, avatar_url, category, clips, status):
 
         for i, clip in enumerate(clips):
             n = i + 1
-            status(f"Processing Clip {n} of {len(clips)}…", 0.65 + i / len(clips) * 0.30)
+            status(f"Processing Clip {n} of {len(clips)}\u2026", 0.65 + i / len(clips) * 0.30)
             start, end, notes = clip["start"], clip["end"], clip["notes"]
             clip_name = clip["name"] if clip["name"] else f"Clip {n}"
             clip_path = download_clip_file(url, start, end, tmp, n)
@@ -723,7 +731,7 @@ function makeDropZone(zoneId, labelId, progId, progLabelId, progFillId, acceptEx
     const ext = file.name.split('.').pop().toLowerCase();
     if (!acceptExts.includes(ext)) { setResult('error', 'Unsupported: .' + ext); return; }
     busy = true;
-    setProgress('Uploading…', 0.1);
+    setProgress('Uploading\u2026', 0.1);
     const fd = new FormData();
     fd.append('file', file);
     try {
@@ -901,5 +909,9 @@ def progress(job_id):
 
 
 if __name__ == "__main__":
+    import webbrowser
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    print(f"\n  MVS Studios Hub → http://localhost:{port}\n")
+    # Open browser automatically after a short delay
+    threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{port}")).start()
+    app.run(host="127.0.0.1", port=port, threaded=True)

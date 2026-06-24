@@ -1,0 +1,5 @@
+flask
+requests
+Pillow
+yt-dlp
+python-dotenv
