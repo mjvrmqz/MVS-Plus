@@ -504,27 +504,13 @@ HTML = r"""<!DOCTYPE html>
     --red:    #E03030;
     --green:  #2ecc71;
     --font:   'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --hub-card:     #101010;
+    --hub-tray:     #050505;
+    --hub-ext-from: #530000;
+    --hub-ext-to:   #0e0707;
   }
   html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: var(--font); user-select: none; }
   input, textarea { user-select: text; }
-
-  header {
-    background: var(--bg2);
-    border-bottom: 1px solid var(--bord);
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    -webkit-app-region: drag;
-  }
-  .logo { display: flex; align-items: center; gap: 10px; }
-  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
-  .logo-text { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--fg); }
-  .logo-sub  { font-size: 10px; color: var(--fg3); margin-left: 2px; }
 
   nav {
     background: var(--bg2);
@@ -532,6 +518,10 @@ HTML = r"""<!DOCTYPE html>
     display: flex;
     padding: 0 24px;
     gap: 2px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    -webkit-app-region: drag;
   }
   .tab {
     background: none;
@@ -554,24 +544,32 @@ HTML = r"""<!DOCTYPE html>
   .panel.active { display: block; }
 
   .drop-zone {
-    border: 1.5px dashed var(--bord);
-    border-radius: 8px;
-    background: var(--bg3);
+    border: 1px solid #1c1c1c;
+    border-radius: 10px;
+    background: var(--hub-card);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 220px;
+    height: 260px;
     cursor: default;
     transition: border-color .15s, background .15s;
   }
-  .drop-zone.hover  { border-color: var(--red); background: #1a0e0e; }
+  .drop-zone.hover  { border-color: var(--red); background: #160a0a; }
   .drop-zone.done   { border-color: var(--green); background: #0c1a0f; }
   .drop-zone.error  { border-color: #7a2020; background: #1a0c0c; }
-  .drop-icon { margin-bottom: 12px; }
-  .drop-label { font-size: 13px; color: var(--fg3); margin-bottom: 5px; }
+  .drop-icon { margin-bottom: 18px; }
+  .drop-label { font-size: 14px; color: var(--fg); margin-bottom: 7px; font-weight: 500; }
   .drop-label.active-drag { color: var(--red); }
-  .drop-ext { font-size: 10px; color: var(--fg3); opacity: .5; }
+  .drop-ext {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    background: linear-gradient(90deg, var(--hub-ext-from), var(--hub-ext-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
   .drop-result { text-align: center; }
   .drop-result .sym { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
   .drop-result .sym.done  { color: var(--green); }
@@ -673,14 +671,6 @@ HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 
-<header>
-  <div class="logo">
-    <div class="logo-dot"></div>
-    <span class="logo-text">MVS Studios</span>
-    <span class="logo-sub">Hub</span>
-  </div>
-</header>
-
 <nav>
   <button class="tab active" data-panel="frame">Frame</button>
   <button class="tab" data-panel="clip">Clip</button>
@@ -689,12 +679,10 @@ HTML = r"""<!DOCTYPE html>
 
 <div class="panel active" id="panel-frame">
   <div class="drop-zone" id="frame-drop">
-    <svg class="drop-icon" width="24" height="32" viewBox="0 0 24 32" fill="none">
-      <line x1="12" y1="0" x2="12" y2="20" stroke="#444" stroke-width="2" stroke-linecap="round"/>
-      <polyline points="4,12 12,20 20,12" stroke="#444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="2" y1="28" x2="22" y2="28" stroke="#444" stroke-width="2" stroke-linecap="round"/>
+    <svg class="drop-icon" width="48" height="36" viewBox="0 0 48 36" fill="none">
+      <path d="M10 6 V20 a6 6 0 0 0 6 6 H32 a6 6 0 0 0 6-6 V6" stroke="#1c1c1c" stroke-width="7" stroke-linecap="round"/>
     </svg>
-    <div class="drop-label" id="frame-label">Drop image here</div>
+    <div class="drop-label" id="frame-label">Drop Frame Here</div>
     <div class="drop-ext">JPG · PNG · WEBP</div>
     <div class="prog-wrap" id="frame-prog">
       <div class="prog-label" id="frame-prog-label"></div>
@@ -705,12 +693,10 @@ HTML = r"""<!DOCTYPE html>
 
 <div class="panel" id="panel-clip">
   <div class="drop-zone" id="clip-drop">
-    <svg class="drop-icon" width="24" height="32" viewBox="0 0 24 32" fill="none">
-      <line x1="12" y1="0" x2="12" y2="20" stroke="#444" stroke-width="2" stroke-linecap="round"/>
-      <polyline points="4,12 12,20 20,12" stroke="#444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="2" y1="28" x2="22" y2="28" stroke="#444" stroke-width="2" stroke-linecap="round"/>
+    <svg class="drop-icon" width="48" height="36" viewBox="0 0 48 36" fill="none">
+      <path d="M10 6 V20 a6 6 0 0 0 6 6 H32 a6 6 0 0 0 6-6 V6" stroke="#1c1c1c" stroke-width="7" stroke-linecap="round"/>
     </svg>
-    <div class="drop-label" id="clip-label">Drop video here</div>
+    <div class="drop-label" id="clip-label">Drop Clip Here</div>
     <div class="drop-ext">MP4 · MOV · MKV · AVI · M4V · WEBM</div>
     <div class="prog-wrap" id="clip-prog">
       <div class="prog-label" id="clip-prog-label"></div>
