@@ -3,9 +3,10 @@
 notion_cover_collage.py
 
 Reads the N most recent pages from a Notion database (FRAMES_DB_ID),
-grabs the images found in each page's content blocks, composites them
-into a moody, dark, tilted/blurred PNG collage, uploads the PNG directly
-to Notion via the File Upload API, and sets it as that page's cover.
+grabs ALL images found across those pages' content blocks, combines them
+into a single moody, dark, tilted/blurred PNG collage, uploads the PNG
+directly to Notion via the File Upload API, and sets it as the cover of
+the PAGE THAT THE DATABASE LIVES ON (not the individual entry pages).
 
 Env vars required:
   NOTION_KEY     - Notion integration token
@@ -330,54 +331,74 @@ def get_page_title(page):
     return page.get("id", "untitled")
 
 
+def get_database_info(db_id):
+    """Fetch database metadata, including its parent page (where the cover should go)."""
+    url = f"{NOTION_API_BASE}/databases/{db_id}"
+    resp = requests.get(url, headers=HEADERS)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def main():
     if not NOTION_KEY or not FRAMES_DB_ID:
         raise RuntimeError("NOTION_KEY and FRAMES_DB_ID env vars must be set.")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    print(f"Querying {PAGE_LIMIT} most recent pages from database {FRAMES_DB_ID}...")
+    print(f"Looking up database {FRAMES_DB_ID} to find its parent page...")
+    db_info = get_database_info(FRAMES_DB_ID)
+    parent = db_info.get("parent", {})
+
+    if parent.get("type") != "page_id":
+        raise RuntimeError(
+            f"Database parent is type '{parent.get('type')}', not a page. "
+            "Can't set a page cover on a workspace-level or block-level database."
+        )
+
+    parent_page_id = parent["page_id"]
+    print(f"Database lives on page: {parent_page_id}")
+
+    print(f"\nQuerying {PAGE_LIMIT} most recent pages from database {FRAMES_DB_ID}...")
     pages = query_recent_pages(FRAMES_DB_ID, PAGE_LIMIT)
     print(f"Found {len(pages)} pages.")
+
+    all_images = []
 
     for page in pages:
         page_id = page["id"]
         title = get_page_title(page)
-        print(f"\nProcessing page: {title} ({page_id})")
+        print(f"\nScanning page: {title} ({page_id})")
 
         image_urls = extract_image_urls_from_blocks(page_id)
         print(f"  Found {len(image_urls)} image(s) in page content.")
 
-        if not image_urls:
-            print("  No images found, skipping.")
-            continue
-
-        images = []
         for url in image_urls:
             img = download_image(url)
             if img is not None:
-                images.append(img)
+                all_images.append(img)
 
-        if not images:
-            print("  No images successfully downloaded, skipping.")
-            continue
+        time.sleep(0.5)
 
-        collage = build_collage(images)
+    print(f"\nTotal images collected across all {len(pages)} pages: {len(all_images)}")
 
-        safe_name = "".join(c if c.isalnum() else "_" for c in title)[:50]
-        out_path = os.path.join(OUTPUT_DIR, f"{safe_name}_{page_id}.png")
-        collage.save(out_path, "PNG")
-        print(f"  Saved collage to {out_path}")
+    if not all_images:
+        print("No images found anywhere, nothing to do.")
+        return
 
-        try:
-            file_upload_id = upload_to_notion(out_path)
-            print(f"  Uploaded to Notion (file_upload id: {file_upload_id})")
-            set_page_cover_from_upload(page_id, file_upload_id)
-            print("  Page cover updated.")
-        except Exception as e:
-            print(f"  [warn] failed to upload/set cover: {e}")
+    print("Building combined collage...")
+    collage = build_collage(all_images)
 
-        time.sleep(1)
+    out_path = os.path.join(OUTPUT_DIR, f"db_cover_{FRAMES_DB_ID}.png")
+    collage.save(out_path, "PNG")
+    print(f"Saved collage to {out_path}")
+
+    print("Uploading collage to Notion...")
+    file_upload_id = upload_to_notion(out_path)
+    print(f"Uploaded (file_upload id: {file_upload_id})")
+
+    print("Setting database parent page cover...")
+    set_page_cover_from_upload(parent_page_id, file_upload_id)
+    print("Done. Database page cover updated.")
 
 
 if __name__ == "__main__":
